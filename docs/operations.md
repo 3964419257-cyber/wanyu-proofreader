@@ -81,7 +81,7 @@ PUT `/{id}/chunks/{index}` 提交分片，POST `/{id}/complete` 完成，DELETE 
 1 GiB），私有目录为 `pb_data/pdf-upload-staging-v1`，目录 0700、文件 0600。
 取消立即删除分片，闲置一小时后由每分钟清理任务回收，重启时清空全部遗留
 分片。完成结果在进程内保留到会话过期，支持网络响应丢失后的幂等重试。
-刷新页面、退出页面后重传或服务重启后的续传由 [#88](https://github.com/e-dialect/fangji-v2/issues/88) 单独跟踪。
+刷新页面、退出页面后重传或服务重启后的续传由 [#88](https://github.com/e-dialect/wanyu-proofreader/issues/88) 单独跟踪。
 
 正常上传无需调整共享 Traefik：60 秒限制作用于每个分片请求，而非整本书的
 累计传输时间。极慢到单个 1 MiB 分片也超过入口超时的网络仍可能失败；此时
@@ -133,7 +133,7 @@ diff -u /path/to/traefik.json /tmp/traefik-upload.json
 如果基础设施有配置生成器，同时修改生成源，避免下次部署覆盖。
 这个入口可能由多个站点共享，变更会允许它们的上传连接占用至多 10 分钟；
 不使用无限超时。回滚为备份文件并重启 Traefik 即可，无数据库迁移。
-仅重建方辑容器或设置 router 的 `serversTransport` **不能**改变入口读取超时。
+仅重建万语校坊容器或设置 router 的 `serversTransport` **不能**改变入口读取超时。
 
 验证：在测试项目以约 1 MiB/s 上传一份 80 MiB PDF，确认耗时超过 60 秒仍返回
 202，随后文件状态为 ready；并验证超限文件仍返回 413、无权限用户仍被拒绝。
