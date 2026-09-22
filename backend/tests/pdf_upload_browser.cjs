@@ -15,6 +15,8 @@ const csp=fs.readFileSync(path.resolve(__dirname,'../../frontend/nginx.conf'),'u
   if(url.pathname.startsWith('/api/')){
    assert(!url.pathname.endsWith('/files/pdf'),'UI must use chunked upload')
    if(url.pathname.endsWith('/pdf-uploads')&&req.method()==='POST'){
+    // One failed UI attempt = create POST + cleanup POST. Both must be blocked
+    // here so the real backend never sees them; otherwise progress waits forever.
     if(blockedCreates<2){blockedCreates++;return route.fulfill({status:403,json:{message:'暂时无法上传，请重试'}})}
     sessionCreates++
    }
@@ -48,6 +50,7 @@ const csp=fs.readFileSync(path.resolve(__dirname,'../../frontend/nginx.conf'),'u
  await page.screenshot({path:path.join(out,'upload-invalid.png'),fullPage:true})
  await input.setInputFiles({name:'source.pdf',mimeType:'application/pdf',buffer:Buffer.from(fixture.source,'base64')})
  await page.getByRole('button',{name:'重试上传 PDF'}).waitFor()
+ assert.equal(blockedCreates,2,'failed create must consume create+cleanup POSTs')
  assert.equal(sessionCreates,0,'failed creation must not reach the backend')
  await page.screenshot({path:path.join(out,'upload-failure.png'),fullPage:true})
  await page.getByRole('button',{name:'重试上传 PDF'}).click()
