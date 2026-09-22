@@ -1,5 +1,9 @@
+function currentRound(page) {
+  return page.getInt("proofread_round") || 1
+}
+
 function proofreadAttempts(dao, page) {
-  const round = page.getInt("proofread_round") || 1
+  const round = currentRound(page)
   return dao.findRecordsByFilter(
     "proofreading_attempts",
     `page = "${page.id}" && round = ${round} && kind = "proofread"`,
@@ -9,8 +13,44 @@ function proofreadAttempts(dao, page) {
   )
 }
 
+function ownProofreadAttempt(dao, page, userId) {
+  const round = currentRound(page)
+  const attempts = dao.findRecordsByFilter(
+    "proofreading_attempts",
+    `page = "${page.id}" && round = ${round} && proofreader = "${userId}" && kind = "proofread"`,
+    "",
+    1,
+    0
+  )
+  return attempts.length ? attempts[0] : null
+}
+
+function reviewedProofreads(dao, projectId, userId) {
+  const attempts = dao.findRecordsByFilter(
+    "proofreading_attempts",
+    `project = "${projectId}" && proofreader = "${userId}" && kind = "proofread"`,
+    "submitted_at",
+    100000,
+    0
+  )
+  const items = []
+  for (const attempt of attempts) {
+    let page = null
+    try { page = dao.findRecordById("pages", attempt.getString("page")) } catch { continue }
+    if (page.getString("project") !== projectId) continue
+    if (attempt.getInt("round") !== currentRound(page)) continue
+    items.push({ page, attempt })
+  }
+  items.sort((a, b) => {
+    const byNumber = a.page.getInt("page_number") - b.page.getInt("page_number")
+    if (byNumber !== 0) return byNumber
+    return String(a.page.id).localeCompare(String(b.page.id))
+  })
+  return items
+}
+
 function arbitrationAttempt(dao, page) {
-  const round = page.getInt("proofread_round") || 1
+  const round = currentRound(page)
   const attempts = dao.findRecordsByFilter(
     "proofreading_attempts",
     `page = "${page.id}" && round = ${round} && kind = "arbitration"`,
@@ -117,6 +157,8 @@ function reconcileProjectQuorum(dao, projectId) {
 
 module.exports = {
   proofreadAttempts,
+  ownProofreadAttempt,
+  reviewedProofreads,
   arbitrationAttempt,
   requiredProofreads,
   canonicalRow,
