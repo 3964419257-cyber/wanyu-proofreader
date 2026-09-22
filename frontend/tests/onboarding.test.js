@@ -108,3 +108,8 @@ test('profile offers a way to replay the tour and the editor starts it after loa
   assert.match(editor, /<AppModal/)
   assert.match(layout, /ProofreaderOnboarding/)
 })
+
+test('PDF reuse browser fixture opts out of the first-run tour', () => {
+  const script = readFileSync(new URL('../../backend/tests/pdf_reuse_browser.cjs', import.meta.url), 'utf8')
+  assert.match(script, /fangji:onboarding:v1:\$\{auth\.record\.id\}/)
+})
