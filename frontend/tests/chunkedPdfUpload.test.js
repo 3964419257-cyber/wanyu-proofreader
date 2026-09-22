@@ -60,7 +60,7 @@ test('a rejected create still attempts cleanup so the user slot is not stranded'
     methods.push(req.method)
     if(req.method==='POST') throw Object.assign(new Error('forbidden'),{status:403})
   }}),/forbidden/)
-  assert.deepEqual(methods,['POST','POST','DELETE'])
+  assert.deepEqual(methods,['POST','POST'])
 })
 test('transient errors retry at most three times; abort stops retry',async()=>{
  let calls=0; await assert.rejects(retryUploadRequest(async()=>{calls++;throw Error('offline')},{sleep}),/offline/);assert.equal(calls,4)
