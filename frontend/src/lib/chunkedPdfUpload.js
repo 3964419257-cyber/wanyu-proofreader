@@ -148,7 +148,8 @@ export async function uploadPdfInChunks({
     clearPdfUploadResume(storage, userId, projectId)
     return completed
   } catch (error) {
-    if (error?.message?.includes('不是原来的文件') || !shouldCancelFailedUpload(error)) throw error
+    if (error?.message?.includes('不是原来的文件')) throw error
+    if (session && !shouldCancelFailedUpload(error)) throw error
     const cleanupSignal = AbortSignal.timeout(5000)
     try {
       session ||= await create(cleanupSignal)
