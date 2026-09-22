@@ -26,19 +26,32 @@ function ownProofreadAttempt(dao, page, userId) {
 }
 
 function reviewedProofreads(dao, projectId, userId) {
-  const attempts = dao.findRecordsByFilter(
-    "proofreading_attempts",
-    `project = "${projectId}" && proofreader = "${userId}" && kind = "proofread"`,
-    "submitted_at",
+  const pages = dao.findRecordsByFilter(
+    "pages",
+    `project = "${projectId}"`,
+    "page_number",
     100000,
     0
   )
-  const items = []
+  const attempts = dao.findRecordsByFilter(
+    "proofreading_attempts",
+    `project = "${projectId}" && proofreader = "${userId}" && kind = "proofread"`,
+    "",
+    100000,
+    0
+  )
+  const attemptsByPage = Object.create(null)
   for (const attempt of attempts) {
-    let page = null
-    try { page = dao.findRecordById("pages", attempt.getString("page")) } catch { continue }
+    const pageId = attempt.getString("page")
+    if (!attemptsByPage[pageId]) attemptsByPage[pageId] = []
+    attemptsByPage[pageId].push(attempt)
+  }
+  const items = []
+  for (const page of pages) {
     if (page.getString("project") !== projectId) continue
-    if (attempt.getInt("round") !== currentRound(page)) continue
+    const round = currentRound(page)
+    const attempt = (attemptsByPage[page.id] || []).find((row) => row.getInt("round") === round)
+    if (!attempt) continue
     items.push({ page, attempt })
   }
   items.sort((a, b) => {

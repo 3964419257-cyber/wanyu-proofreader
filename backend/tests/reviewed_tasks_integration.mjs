@@ -170,7 +170,9 @@ try {
   assertBlindCursor(activeTask, 'active assigned task')
 
   await request(`/api/fangji/pages/${page1.id}/task`, { token: second.token, expected: 403 })
+  await request(`/api/fangji/pages/${page1.id}/task?mode=review`, { token: second.token, expected: 403 })
   await request(`/api/fangji/pages/${page3.id}/task`, { token: first.token, expected: 403 })
+  await request(`/api/fangji/pages/${page3.id}/task?mode=review`, { token: first.token, expected: 403 })
 
   const firstSubmit = await request(`/api/fangji/pages/${page1.id}/submit`, {
     method: 'POST',
@@ -199,8 +201,15 @@ try {
   assert.equal(reviewedAfterFirst.items[0].page_number, 1)
   assert.equal(typeof reviewedAfterFirst.items[0].submitted_at, 'string')
   assert.ok(reviewedAfterFirst.items[0].submitted_at)
+  assert.match(
+    reviewedAfterFirst.items[0].submitted_at,
+    /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}/,
+    'submitted_at should be a datetime string'
+  )
   assert.equal(Object.keys(reviewedAfterFirst.items[0]).sort().join(','), 'id,page_number,submitted_at')
   assertBlindCursor(reviewedAfterFirst, 'first reviewed cursor')
+
+  await request(`/api/fangji/pages/${page1.id}/task`, { token: first.token, expected: 403 })
 
   const secondEmpty = await request(`/api/fangji/projects/${project.id}/tasks/reviewed`, {
     token: second.token
@@ -231,13 +240,15 @@ try {
   assert.equal(secondActiveTask.proofread_text, undefined)
   assert.equal(JSON.stringify(secondActiveTask).includes('条目一甲'), false, 'active task leaked another proofreader submission')
 
-  const firstReadonly = await request(`/api/fangji/pages/${page1.id}/task`, { token: first.token })
+  const firstReadonly = await request(`/api/fangji/pages/${page1.id}/task?mode=review`, { token: first.token })
   assert.equal(firstReadonly.readonly, true)
   assert.equal(firstReadonly.proofreader, undefined)
+  assert.equal('status' in firstReadonly, false, 'readonly task leaked page status')
   assert.equal(firstReadonly.proofread_text, '条目一甲')
   assert.equal(JSON.parse(firstReadonly.proofread_row_json).词条, '条目一甲')
   assert.equal(firstReadonly.ocr_text, '条目一')
   assertBlindCursor(firstReadonly, 'own readonly task')
+  await request(`/api/fangji/pages/${page1.id}/task`, { token: first.token, expected: 403 })
 
   await claimAndSubmit(project.id, first, '条目三甲', page3.id)
 
@@ -273,10 +284,14 @@ try {
   })
   assert.equal(secondSubmit.status, 'arbitration')
 
-  const firstOwn = await request(`/api/fangji/pages/${page1.id}/task`, { token: first.token })
-  const secondOwn = await request(`/api/fangji/pages/${page1.id}/task`, { token: second.token })
+  await request(`/api/fangji/pages/${page1.id}/task`, { token: first.token, expected: 403 })
+  await request(`/api/fangji/pages/${page1.id}/task`, { token: second.token, expected: 403 })
+  const firstOwn = await request(`/api/fangji/pages/${page1.id}/task?mode=review`, { token: first.token })
+  const secondOwn = await request(`/api/fangji/pages/${page1.id}/task?mode=review`, { token: second.token })
   assert.equal(firstOwn.proofread_text, '条目一甲')
   assert.equal(secondOwn.proofread_text, '条目一乙')
+  assert.equal('status' in firstOwn, false, 'arbitration readonly leaked page status')
+  assert.equal('status' in secondOwn, false, 'arbitration readonly leaked page status')
   assert.equal(JSON.stringify(firstOwn).includes('条目一乙'), false)
   assert.equal(JSON.stringify(secondOwn).includes('条目一甲'), false)
   assertBlindCursor(firstOwn, 'first arbitration readonly')
@@ -288,7 +303,7 @@ try {
   assert.deepEqual(secondReviewed.items.map((item) => item.id), [page1.id])
   assert.equal(secondReviewed.total, 1)
 
-  await request(`/api/fangji/pages/${page1.id}/submit`, {
+  const resubmit = await request(`/api/fangji/pages/${page1.id}/submit`, {
     method: 'POST',
     token: first.token,
     expected: 400,
@@ -298,6 +313,9 @@ try {
       leaseToken: firstClaim.leaseToken
     }
   })
+  // After submit, ownership is cleared, so this is rejected by the assignment
+  // gate rather than the duplicate-attempt check.
+  assert.match(String(resubmit?.message || ''), /该条目当前不属于你/)
 
   const stalePage = await createPage(project.id, 9, '旧轮')
   await request('/api/collections/proofreading_attempts/records', {
@@ -322,6 +340,7 @@ try {
   assert.deepEqual(afterStaleRound.items.map((item) => item.id), [page1.id, page2.id, page3.id])
   assert.equal(afterStaleRound.total, 3)
   await request(`/api/fangji/pages/${stalePage.id}/task`, { token: first.token, expected: 403 })
+  await request(`/api/fangji/pages/${stalePage.id}/task?mode=review`, { token: first.token, expected: 403 })
 
   console.log('Reviewed tasks cursor integration test passed.')
 } finally {
