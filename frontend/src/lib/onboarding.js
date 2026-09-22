@@ -52,3 +52,7 @@ export function browserLocalStorage() {
     return null
   }
 }
+
+export function shouldIgnoreEditorShortcut(event, onboardingApi) {
+  return Boolean(event?.defaultPrevented || onboardingApi?.open)
+}

@@ -5,7 +5,8 @@ import {
   hasCompletedOnboarding,
   markOnboardingSeen,
   onboardingKey,
-  resetOnboarding
+  resetOnboarding,
+  shouldIgnoreEditorShortcut
 } from '../src/lib/onboarding.js'
 import { onboardingSteps } from '../src/lib/onboardingSteps.js'
 
@@ -103,13 +104,30 @@ test('profile offers a way to replay the tour and the editor starts it after loa
   const profile = readFileSync(new URL('../src/views/proofreader/ProfileView.vue', import.meta.url), 'utf8')
   const editor = readFileSync(new URL('../src/views/proofreader/ProofreadEditorView.vue', import.meta.url), 'utf8')
   const layout = readFileSync(new URL('../src/views/proofreader/ProofreaderLayout.vue', import.meta.url), 'utf8')
+  const onboarding = readFileSync(new URL('../src/components/ProofreaderOnboarding.vue', import.meta.url), 'utf8')
   assert.match(profile, /重看新手引导/)
   assert.match(editor, /startIfUnseen/)
+  assert.match(editor, /shouldIgnoreEditorShortcut/)
   assert.match(editor, /<AppModal/)
   assert.match(layout, /ProofreaderOnboarding/)
+  assert.match(onboarding, /defineExpose\(\{ startIfUnseen, reopen, open \}\)/)
+})
+
+test('editor shortcuts yield while the onboarding tour is open', () => {
+  const enter = { key: 'Enter', defaultPrevented: false }
+  assert.equal(shouldIgnoreEditorShortcut(enter, { open: true }), true)
+  assert.equal(shouldIgnoreEditorShortcut(enter, { open: false }), false)
+  assert.equal(shouldIgnoreEditorShortcut({ defaultPrevented: true }, { open: false }), true)
+  assert.equal(shouldIgnoreEditorShortcut(enter, null), false)
 })
 
 test('PDF reuse browser fixture opts out of the first-run tour', () => {
   const script = readFileSync(new URL('../../backend/tests/pdf_reuse_browser.cjs', import.meta.url), 'utf8')
   assert.match(script, /fangji:onboarding:v1:\$\{auth\.record\.id\}/)
+})
+
+test('AppModal locks scroll on an initially open mount', () => {
+  const modal = readFileSync(new URL('../src/components/AppModal.vue', import.meta.url), 'utf8')
+  assert.match(modal, /immediate:\s*true/)
+  assert.match(modal, /if \(!previousFocus\) return/)
 })

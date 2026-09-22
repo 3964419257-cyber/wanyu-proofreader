@@ -41,5 +41,5 @@ const {
   prev
 } = useProofreaderOnboarding(toRef(props, 'userId'))
 
-defineExpose({ startIfUnseen, reopen })
+defineExpose({ startIfUnseen, reopen, open })
 </script>

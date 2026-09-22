@@ -54,8 +54,9 @@ watch(() => props.open, async (isOpen) => {
     initialFocusTarget(dialogRef.value)?.focus?.()
     return
   }
+  if (!previousFocus) return
   restorePage()
-})
+}, { immediate: true })
 
 onBeforeUnmount(restorePage)
 

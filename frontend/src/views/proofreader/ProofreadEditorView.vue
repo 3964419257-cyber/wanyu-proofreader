@@ -187,6 +187,7 @@ import ProjectKeyboard from '@/components/editor/ProjectKeyboard.vue'
 import { useStructuredRow } from '@/composables/useStructuredRow'
 import { useTaskNeighbors } from '@/composables/useTaskNeighbors'
 import { PAGE_STATUS } from '@/constants/pageStatus'
+import { shouldIgnoreEditorShortcut } from '@/lib/onboarding'
 import { getChangedFields } from '@/lib/workspaceInsights'
 import {
   clearTaskDraft,
@@ -528,7 +529,7 @@ function formatDraftTime(value) {
 }
 
 function handleEditorShortcut(event) {
-  if (event.defaultPrevented) return
+  if (shouldIgnoreEditorShortcut(event, onboardingRef.value)) return
   if (event.key === 'Escape' && reviewingSubmission.value) {
     event.preventDefault()
     closeSubmitReview()
