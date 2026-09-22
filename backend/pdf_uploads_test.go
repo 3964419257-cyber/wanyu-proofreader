@@ -95,7 +95,10 @@ func TestChunkUploadHTTP(t *testing.T) {
 		t.Fatal("lost create response duplicated session")
 	}
 	create(tokens[0], "second-request-0002", 1, 429, "")
-	request("POST", base, tokens[0], []byte(`{"name":"book.pdf","size":1,"requestId":"missing-hash-00001"}`), 400)
+	missingHash := request("POST", base, tokens[0], []byte(`{"name":"book.pdf","size":1,"requestId":"missing-hash-00001"}`), 400)
+	if !bytes.Contains(missingHash, []byte("上传参数无效")) {
+		t.Fatalf("missing contentHash message=%s", missingHash)
+	}
 	request("PUT", base+"/"+id+"/chunks/0", tokens[1], pdf[:pdfChunkBytes], 404)
 	request("POST", base+"/"+id+"/complete", tokens[0], nil, 409)
 	request("PUT", base+"/"+id+"/chunks/-1", tokens[0], pdf[:pdfChunkBytes], 400)
@@ -146,7 +149,14 @@ func TestChunkUploadHTTP(t *testing.T) {
 	}
 	request("DELETE", base+"/"+ids[0], tokens[0], nil, 204)
 	create(tokens[4], "quota-request-0004", 1, 201, "")
-	create(tokens[0], "oversized-request1", maxPDFBytes+1, 400, "")
+	oversized, _ := json.Marshal(map[string]any{
+		"name": "book.pdf", "size": maxPDFBytes + 1, "requestId": "oversized-request1",
+		"contentHash": fmt.Sprintf("%x", sha256.Sum256([]byte("oversized-request1"))),
+	})
+	oversizedBody := request("POST", base, tokens[0], oversized, 400)
+	if !bytes.Contains(oversizedBody, []byte("请选择不超过 100 MiB 的 PDF 文件")) {
+		t.Fatalf("oversized message=%s", oversizedBody)
+	}
 	// A session owner who loses manager rights can no longer write or complete.
 	records[1].Set("role", "user")
 	if err := app.Save(records[1]); err != nil {

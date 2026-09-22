@@ -506,12 +506,7 @@ const csvJobStatusLabel = computed(() => ({
 })[csvJob.value?.status] || '准备导入')
 const csvInspection = computed(() => parseCsvInspection(csvJob.value?.inspection_json))
 const csvPreviewHeaders = computed(() => csvInspection.value?.headers.slice(0, 6) || [])
-const pdfResumeExpired = computed(() => {
-  const expiresAt = pdfResume.value?.expiresAt
-  if (!expiresAt) return false
-  const date = new Date(expiresAt)
-  return Number.isNaN(date.getTime()) || date.getTime() <= Date.now()
-})
+const pdfResumeExpired = computed(() => Boolean(pdfResume.value?.expired))
 
 watch([searchQuery, selectedStatus, listPageSize, minPdfPage, maxPdfPage], () => {
   currentListPage.value = 1
@@ -658,6 +653,17 @@ function onCsvSelected(e) {
   csvImportErrors.value = []
 }
 
+function decoratePdfResume(item) {
+  if (!item) return null
+  const expiresAt = item.expiresAt
+  let expired = false
+  if (expiresAt) {
+    const date = new Date(expiresAt)
+    expired = Number.isNaN(date.getTime()) || date.getTime() <= Date.now()
+  }
+  return { ...item, expired }
+}
+
 async function loadPdfResume() {
   const userId = currentUserId()
   const stored = loadPdfUploadResume(typeof localStorage === 'undefined' ? null : localStorage, userId, projectId)
@@ -665,13 +671,18 @@ async function loadPdfResume() {
     const listed = await listProjectPdfUploads(projectId)
     const item = listed?.items?.[0]
     if (item) {
-      pdfResume.value = item
+      pdfResume.value = decoratePdfResume(item)
       return
     }
+    // A successful empty list means the upload finished, expired, or was canceled.
+    // Do not revive a local key that would hide "选择 PDF 文件" over an already-ready file.
+    clearPdfUploadResume(typeof localStorage === 'undefined' ? null : localStorage, userId, projectId)
+    pdfResume.value = null
+    return
   } catch {
     /* Local resume is enough to prompt re-selection after a network error. */
   }
-  pdfResume.value = stored
+  pdfResume.value = decoratePdfResume(stored)
 }
 
 async function abandonPdfResume() {

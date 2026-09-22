@@ -123,8 +123,11 @@ test('hashPdfFile is a full-file digest, not name and size', async () => {
 })
 test('project detail shows recoverable upload, reselect and abandon states', () => {
   const view = readFileSync(new URL('../src/views/admin/ProjectDetailView.vue', import.meta.url), 'utf8')
+    .replace(/\r\n/g, '\n')
   assert.match(view, /有未完成的 PDF 上传/)
   assert.match(view, /重新选择同一 PDF/)
   assert.match(view, /放弃未完成上传/)
   assert.match(view, /已过期，请重新选择文件上传/)
+  assert.match(view, /A successful empty list means the upload finished/)
+  assert.match(view, /pdfResume\.value\?\.expired/)
 })

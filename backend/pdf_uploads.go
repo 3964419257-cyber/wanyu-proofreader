@@ -292,7 +292,10 @@ func (s *importService) createPDFUpload(c *core.RequestEvent, p *pdfUploadPool) 
 		return apis.NewBadRequestError("上传参数无效。", nil)
 	}
 	contentHash := strings.ToLower(strings.TrimSpace(body.ContentHash))
-	if body.Size <= 0 || body.Size > maxPDFBytes || len(body.Name) > 255 || !strings.EqualFold(filepath.Ext(body.Name), ".pdf") || len(body.RequestID) < 16 || len(body.RequestID) > 80 || !contentHashOK(contentHash) {
+	if len(body.RequestID) < 16 || len(body.RequestID) > 80 || !contentHashOK(contentHash) {
+		return apis.NewBadRequestError("上传参数无效。", nil)
+	}
+	if body.Size <= 0 || body.Size > maxPDFBytes || len(body.Name) > 255 || !strings.EqualFold(filepath.Ext(body.Name), ".pdf") {
 		return apis.NewBadRequestError("请选择不超过 100 MiB 的 PDF 文件。", nil)
 	}
 	id := fmt.Sprintf("%x", sha256.Sum256([]byte(c.Auth.Id+"\x00"+body.RequestID)))
