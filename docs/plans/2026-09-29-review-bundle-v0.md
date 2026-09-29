@@ -12,8 +12,8 @@ JSONL 使用 LF。`lines` 按物理行计数：末尾换行不另算空行。`by
 
 样例（合成数据，不是语料）：
 
-- `docs/fixtures/review-bundle-v0/inbound/`
-- `docs/fixtures/review-bundle-v0/result/`
+- `backend/reviewbundle/testdata/review-bundle-v0/inbound/`
+- `backend/reviewbundle/testdata/review-bundle-v0/result/`
 
 ## 2. 进入包 `ReviewBundle/v0`
 

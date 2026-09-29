@@ -15,14 +15,14 @@ import (
 
 func TestSyntheticFixturesPass(t *testing.T) {
 	for _, name := range []string{"inbound", "result"} {
-		report, err := ValidateDir(filepath.Join("..", "..", "docs", "fixtures", "review-bundle-v0", name))
+		report, err := ValidateDir(filepath.Join("testdata", "review-bundle-v0", name))
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !report.OK || report.EntryCount != 2 || len(report.Errors) != 0 {
 			t.Fatalf("%s: %#v", name, report)
 		}
-		again, err := ValidateDir(filepath.Join("..", "..", "docs", "fixtures", "review-bundle-v0", name))
+		again, err := ValidateDir(filepath.Join("testdata", "review-bundle-v0", name))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -210,7 +210,7 @@ func zipBytes(t *testing.T, files map[string]string) []byte {
 }
 
 func TestFixtureZipMatchesDirectory(t *testing.T) {
-	zipPath := filepath.Join("..", "..", "docs", "fixtures", "review-bundle-v0", "inbound.zip")
+	zipPath := filepath.Join("testdata", "review-bundle-v0", "inbound.zip")
 	data, err := os.ReadFile(zipPath)
 	if err != nil {
 		t.Fatal(err)

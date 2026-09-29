@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const base = process.env.PB_URL
-const fixtures = join(dirname(fileURLToPath(import.meta.url)), '../../docs/fixtures/review-bundle-v0')
+const fixtures = join(dirname(fileURLToPath(import.meta.url)), '../reviewbundle/testdata/review-bundle-v0')
 
 async function api(path, { method = 'GET', token = '', body, status = 200 } = {}) {
   const form = body instanceof FormData

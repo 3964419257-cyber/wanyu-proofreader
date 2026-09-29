@@ -18,7 +18,7 @@ func TestValidationDoesNotChangeRecordCounts(t *testing.T) {
 		}
 		before[name] = count
 	}
-	dir := filepath.Join("..", "docs", "fixtures", "review-bundle-v0", "inbound")
+	dir := filepath.Join("reviewbundle", "testdata", "review-bundle-v0", "inbound")
 	for i := 0; i < 2; i++ {
 		report, err := reviewbundle.ValidateDir(dir)
 		if err != nil {
