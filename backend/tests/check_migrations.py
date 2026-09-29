@@ -99,6 +99,9 @@ SPECS = {
             'file_size': {'required': False},
         }),
     },
+    # Column roles are metadata on the project row. There is no new index;
+    # the entry exists so a missing migration file still fails the coverage check.
+    '1789200100_column_roles.js': {},
 }
 FIRST = '1788940000_initial_schema.js'
 

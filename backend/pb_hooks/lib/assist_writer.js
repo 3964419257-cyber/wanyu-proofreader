@@ -65,11 +65,13 @@ function rowForRules(page) {
 function contextFor(dao, page) {
   const { makeContext } = require(`${__hooks}/lib/assist_rules.js`)
   const { projectConfig: proofProjectConfig } = require(`${__hooks}/lib/keyboards.js`)
+  const { loadProjectRoles, rolesForRules } = require(`${__hooks}/lib/column_roles.js`)
   const projectId = page.getString("project")
+  const stored = projectId ? loadProjectRoles(dao, projectId) : {}
   return makeContext({
     projectId,
-    // 列角色(#170) 未落地前一律传 null：R5 会安全跳过，不会拿列名猜角色。
-    roles: null,
+    // 没有任何有效角色时保持 null。R5 和难度信号因此与未标注时相同，不会按列名猜。
+    roles: rolesForRules(stored, rowForRules(page)),
     keyboards: projectId ? proofProjectConfig(dao, projectId).items : []
   })
 }
@@ -299,6 +301,7 @@ function recomputeProject(dao, projectId) {
 function refreshDifficulty(dao, page, stats = null) {
   const { deriveDifficulty, blockedReasonFromFindings, BLOCKED_BUCKETS, DIFFICULTY_VERSION } =
     require(`${__hooks}/lib/assist_difficulty.js`)
+  const { loadProjectRoles, rolesForRules } = require(`${__hooks}/lib/column_roles.js`)
   const findings = readAllInChunks(
     dao, "review_findings", `page = "${page.id}" && superseded_at = ""`, "kind"
   ).map((row) => ({
@@ -315,8 +318,8 @@ function refreshDifficulty(dao, page, stats = null) {
   const manual = BLOCKED_BUCKETS.includes(stored) ? stored : ""
   const signal = {
     findings,
-    // #170 未落地：roles 为 null，涉及列角色的两条信号因此不产生（不是判成 A）。
-    roles: null,
+    // 未标注时 rolesForRules 返回 null，列角色两条信号不产生（不是判成 A）。
+    roles: rolesForRules(loadProjectRoles(dao, page.getString("project")), row),
     pdfPage: Number(page.get("pdf_page")) || 0,
     // 人说过就用人的；没人说过才按本轮疑点现算。算出来的桶只进本轮 derivation
     // （体现为 difficulty_basis_json 里的 column_merge_blocked / glyph_table_blocked），
