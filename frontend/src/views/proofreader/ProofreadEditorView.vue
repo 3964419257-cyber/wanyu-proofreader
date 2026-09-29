@@ -386,6 +386,8 @@ async function loadPage() {
   leaseLost.value = false
   leaseNavigationAllowed.value = false
   submittedHere.value = false
+  claimNextFailure.value = false
+  retryingClaim.value = false
   textareaRefs.clear()
 
   try {
