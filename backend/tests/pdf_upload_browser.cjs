@@ -4,23 +4,27 @@ const {chromium}=require('playwright')
 const fixture=JSON.parse(fs.readFileSync(process.env.PDF_BROWSER_FIXTURE))
 const dist=path.resolve(__dirname,'../../frontend/dist')
 const csp=fs.readFileSync(path.resolve(__dirname,'../../frontend/nginx.conf'),'utf8').match(/add_header Content-Security-Policy "([^"]+)"/)[1]
-// A failed create in chunkedPdfUpload.js sends one POST, then its catch cleanup
-// sends another with the same requestId. Update this count and the assertion
-// below if that cleanup path changes, so retry still reaches the backend.
-const CREATE_POSTS_PER_FAILED_ATTEMPT=2
+// A validation error fails after one POST; a transient error is retried four
+// times. Both paths send one final cleanup POST with the same requestId.
+// Update these counts and the assertions below if upload cleanup changes.
+const CREATE_POSTS_PER_VALIDATION_FAILURE=2
+const CREATE_POSTS_PER_TRANSIENT_FAILURE=5
 ;(async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.BROWSER_CHANNEL?{channel:process.env.BROWSER_CHANNEL}:{})})
  try {
  const page=await browser.newPage({viewport:{width:1440,height:1000}})
- const chunks=[],completions=[],errors=[];let failed=false,lost=false,forwardedCreates=0,blockedCreates=0
+ const chunks=[],completions=[],errors=[];let failed=false,lost=false,forwardedCreates=0,validationCreates=0,blockedCreates=0
  page.on('pageerror',e=>errors.push(e.message))
  await page.route('**/*',async route=>{
   const req=route.request(),url=new URL(req.url());assert.equal(url.origin,'http://localhost')
   if(url.pathname.startsWith('/api/')){
    assert(!url.pathname.endsWith('/files/pdf'),'UI must use chunked upload')
    if(url.pathname.endsWith('/pdf-uploads')&&req.method()==='POST'){
-    // Block both POSTs from the first UI attempt; retry must be forwarded.
-    if(blockedCreates<CREATE_POSTS_PER_FAILED_ATTEMPT){blockedCreates++;return route.fulfill({status:403,json:{message:'暂时无法上传，请重试'}})}
+    // A validation failure and its cleanup request must not reach the backend.
+    if(validationCreates<CREATE_POSTS_PER_VALIDATION_FAILURE){validationCreates++;return route.fulfill({status:400,json:{message:'PDF 结构损坏'}})}
+    // A transient create failure gets four attempts, then one cleanup POST.
+    // Block all five so the backend sees only the session created by UI retry.
+    if(blockedCreates<CREATE_POSTS_PER_TRANSIENT_FAILURE){blockedCreates++;return route.fulfill({status:503,json:{message:'暂时无法上传，请重试'}})}
     forwardedCreates++
    }
    if(url.pathname.includes('/chunks/')){
@@ -53,8 +57,15 @@ const CREATE_POSTS_PER_FAILED_ATTEMPT=2
  assert.equal(forwardedCreates,0,'invalid selection must not forward a create POST')
  await page.screenshot({path:path.join(out,'upload-invalid.png'),fullPage:true})
  await input.setInputFiles({name:'source.pdf',mimeType:'application/pdf',buffer:Buffer.from(fixture.source,'base64')})
+ await page.getByText(/PDF 结构损坏.*重新选择 PDF 文件/).waitFor()
+ assert.equal(validationCreates,CREATE_POSTS_PER_VALIDATION_FAILURE,'validation failure must consume create and cleanup POSTs')
+ assert.equal(await page.getByRole('button',{name:'重试上传 PDF'}).count(),0,'validation failure must not offer retry')
+ await page.waitForFunction(()=>document.querySelector('input[type=file][accept=".pdf"]')?.value==='')
+ assert.equal(await input.inputValue(),'','failed upload must reset file input')
+ await page.screenshot({path:path.join(out,'upload-validation-failure.png'),fullPage:true})
+ await input.setInputFiles({name:'source.pdf',mimeType:'application/pdf',buffer:Buffer.from(fixture.source,'base64')})
  await page.getByRole('button',{name:'重试上传 PDF'}).waitFor()
- assert.equal(blockedCreates,CREATE_POSTS_PER_FAILED_ATTEMPT,'failed create must consume create+cleanup POSTs')
+ assert.equal(blockedCreates,CREATE_POSTS_PER_TRANSIENT_FAILURE,'failed create must consume four retries and one cleanup POST')
  assert.equal(forwardedCreates,0,'failed create POSTs must be intercepted before forwarding')
  await page.screenshot({path:path.join(out,'upload-failure.png'),fullPage:true})
  await page.getByRole('button',{name:'重试上传 PDF'}).click()
