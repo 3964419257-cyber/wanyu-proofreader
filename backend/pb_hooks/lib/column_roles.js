@@ -84,26 +84,36 @@ function loadProjectRoles(dao, projectId) {
   return parseStoredRoles(project.getString("column_roles_json"))
 }
 
-function headersForProject(dao, projectId, limit = 1000) {
-  const pages = dao.findRecordsByFilter("pages", `project = "${projectId}"`, "page_number", limit, 0)
+function headersForProject(dao, projectId) {
   const headers = []
   const seen = new Set()
-  for (const page of pages) {
-    let parsed = []
-    try {
-      parsed = JSON.parse(page.getString("row_headers_json") || "[]")
-    } catch {
-      parsed = []
+  const chunk = 1000
+  for (let offset = 0; ; offset += chunk) {
+    const pages = dao.findRecordsByFilter(
+      "pages",
+      `project = "${projectId}"`,
+      "page_number,created",
+      chunk,
+      offset
+    )
+    for (const page of pages) {
+      let parsed = []
+      try {
+        parsed = JSON.parse(page.getString("row_headers_json") || "[]")
+      } catch {
+        parsed = []
+      }
+      if (!Array.isArray(parsed)) continue
+      for (const header of parsed) {
+        const name = String(header || "")
+        if (!name || seen.has(name)) continue
+        seen.add(name)
+        headers.push(name)
+      }
     }
-    if (!Array.isArray(parsed)) continue
-    for (const header of parsed) {
-      const name = String(header || "")
-      if (!name || seen.has(name)) continue
-      seen.add(name)
-      headers.push(name)
-    }
+    if (pages.length < chunk) break
   }
-  return { headers, truncated: pages.length >= limit }
+  return { headers, truncated: false }
 }
 
 function columnRoleView(dao, projectId) {
