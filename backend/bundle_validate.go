@@ -37,8 +37,11 @@ func validateBundleUpload(c *core.RequestEvent) error {
 		return apis.NewBadRequestError("压缩包超过 20MB，已拒绝，未写入任何数据。", nil)
 	}
 	data, err := io.ReadAll(io.LimitReader(uploaded, maxBundleUploadBytes+1))
-	if err != nil || len(data) > maxBundleUploadBytes {
-		return apis.NewBadRequestError("压缩包无法读取，已拒绝，未写入任何数据。", nil)
+	if err != nil {
+		return apis.NewBadRequestError("压缩包读取失败，已拒绝，未写入任何数据。", nil)
+	}
+	if len(data) > maxBundleUploadBytes {
+		return apis.NewBadRequestError("压缩包超过 20MB，已拒绝，未写入任何数据。", nil)
 	}
 	report, err := reviewbundle.ValidateZip(data)
 	if err != nil {

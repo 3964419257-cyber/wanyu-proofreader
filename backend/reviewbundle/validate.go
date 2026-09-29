@@ -72,44 +72,68 @@ type manifest struct {
 	Files []manifestFile `json:"files"`
 }
 
+type walkRefuse Report
+
+func (r walkRefuse) Error() string {
+	if len(r.Errors) == 0 {
+		return "refused"
+	}
+	return r.Errors[0].Message
+}
+
 // ValidateDir checks a directory that contains manifest.json at its root.
+// Nested paths are kept, so a directory and a zip of the same layout agree.
 func ValidateDir(dir string) (Report, error) {
-	entries, err := os.ReadDir(dir)
+	files := map[string][]byte{}
+	var total int
+	err := filepath.WalkDir(dir, func(full string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if full == dir {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, full)
+		if err != nil {
+			return err
+		}
+		name, ok := cleanRel(filepath.ToSlash(rel))
+		if !ok {
+			return walkRefuse(refused("path_unsafe", fmt.Sprintf("路径「%s」不安全。", rel)))
+		}
+		if entry.Type()&os.ModeSymlink != 0 || (!entry.IsDir() && !entry.Type().IsRegular()) {
+			return walkRefuse(refused("path_unsafe", fmt.Sprintf("路径「%s」不是普通文件。", name)))
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if info.Size() > maxFileBytes {
+			return walkRefuse(refused("bundle_too_large", fmt.Sprintf("文件 %s 超过大小限制。", name)))
+		}
+		data, err := os.ReadFile(full)
+		if err != nil {
+			return err
+		}
+		total += len(data)
+		if total > maxTotalBytes || len(files) >= maxZipFiles {
+			return walkRefuse(refused("bundle_too_large", "包超过大小或文件数限制。"))
+		}
+		files[name] = data
+		return nil
+	})
 	if err != nil {
+		var refusedWalk walkRefuse
+		if errors.As(err, &refusedWalk) {
+			return Report(refusedWalk), nil
+		}
 		if os.IsNotExist(err) {
 			return refused("manifest_missing", "缺少 manifest.json。"), nil
 		}
 		return Report{}, err
-	}
-	files := map[string][]byte{}
-	var total int
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name, ok := cleanRel(entry.Name())
-		if !ok {
-			return refused("path_unsafe", fmt.Sprintf("路径「%s」不安全。", entry.Name())), nil
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return Report{}, err
-		}
-		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
-			return refused("path_unsafe", fmt.Sprintf("路径「%s」不是普通文件。", name)), nil
-		}
-		if info.Size() > maxFileBytes {
-			return refused("bundle_too_large", fmt.Sprintf("文件 %s 超过大小限制。", name)), nil
-		}
-		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
-		if err != nil {
-			return Report{}, err
-		}
-		total += len(data)
-		if total > maxTotalBytes || len(files) >= maxZipFiles {
-			return refused("bundle_too_large", "包超过大小或文件数限制。"), nil
-		}
-		files[name] = data
 	}
 	return validateLoaded(files), nil
 }

@@ -209,17 +209,101 @@ func zipBytes(t *testing.T, files map[string]string) []byte {
 	return buf.Bytes()
 }
 
+func TestDirectoryAndZipAcceptTheSameNestedLayout(t *testing.T) {
+	files := validInbound(t)
+	var doc map[string]any
+	if err := json.Unmarshal([]byte(files["manifest.json"]), &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["files"].([]any)[0].(map[string]any)["path"] = "parts/entries.jsonl"
+	raw, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nested := map[string]string{
+		"manifest.json":       string(raw),
+		"parts/entries.jsonl": files["entries.jsonl"],
+	}
+	dir := t.TempDir()
+	for name, body := range nested {
+		full := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dirReport, err := ValidateDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	zipReport, err := ValidateZip(zipBytes(t, nested))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !dirReport.OK || !zipReport.OK || dirReport.EntryCount != zipReport.EntryCount {
+		t.Fatalf("dir %#v zip %#v", dirReport, zipReport)
+	}
+}
+
 func TestFixtureZipMatchesDirectory(t *testing.T) {
-	zipPath := filepath.Join("testdata", "review-bundle-v0", "inbound.zip")
-	data, err := os.ReadFile(zipPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	report, err := ValidateZip(data)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !report.OK || report.BundleID != "rb-synthetic-0001" {
-		t.Fatalf("%#v", report)
+	for _, name := range []string{"inbound", "result"} {
+		root := filepath.Join("testdata", "review-bundle-v0", name)
+		data, err := os.ReadFile(filepath.Join("testdata", "review-bundle-v0", name+".zip"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
+		if err != nil {
+			t.Fatal(err)
+		}
+		seen := map[string]bool{}
+		for _, file := range reader.File {
+			if file.FileInfo().IsDir() {
+				continue
+			}
+			rc, err := file.Open()
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := io.ReadAll(rc)
+			rc.Close()
+			if err != nil {
+				t.Fatal(err)
+			}
+			disk, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(file.Name)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, disk) {
+				t.Fatalf("%s 里的 %s 和目录文件不一致", name, file.Name)
+			}
+			seen[file.Name] = true
+		}
+		err = filepath.WalkDir(root, func(full string, entry os.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() {
+				return nil
+			}
+			rel, err := filepath.Rel(root, full)
+			if err != nil {
+				return err
+			}
+			key := filepath.ToSlash(rel)
+			if !seen[key] {
+				t.Fatalf("%s.zip 缺少 %s", name, key)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := ValidateZip(data)
+		if err != nil || !report.OK {
+			t.Fatalf("%s %#v %v", name, report, err)
+		}
 	}
 }
