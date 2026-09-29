@@ -154,6 +154,10 @@ function createSource(dao, auth, body) {
 }
 
 function updateSource(dao, record, body) {
+  const writable = new Set(["title", "holder", "scope", "format", "original_vs_derived", "status", "record_count"])
+  for (const key of Object.keys(body || {})) {
+    if (!writable.has(key)) throw new BadRequestError("不能修改来源编号或其他未开放的字段")
+  }
   if (Object.prototype.hasOwnProperty.call(body, "title")) {
     const title = textField(body.title, "标题", 200)
     if (!title) throw new BadRequestError("来源标题不能为空")
@@ -219,7 +223,7 @@ function upsertUsage(dao, auth, source, purpose, body) {
   record.set("decision", decision)
   record.set("evidence_ref", evidence)
   record.set("decided_by", auth.id)
-  record.set("decided_at", body.decided_at ? String(body.decided_at) : new Date().toISOString())
+  record.set("decided_at", new Date().toISOString())
   dao.save(record)
   return usageJson(record)
 }

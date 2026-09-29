@@ -14,7 +14,7 @@
       <div class="section-heading">
         <div>
           <h2>来源清单</h2>
-          <p>未决用途是还没登记，或结论仍是未知的用途。未知会被下游读成阻断，不会当成允许。</p>
+          <p>未允许用途指还没登记、结论仍是未知，或已明确禁止的用途。任何未允许的用途都会被下游读成阻断，不会当成允许。</p>
         </div>
         <button class="btn btn-secondary" :disabled="loading" @click="load">刷新</button>
       </div>
@@ -26,7 +26,7 @@
       <div v-else class="table-wrapper">
         <table>
           <thead>
-            <tr><th>来源</th><th>权利主体</th><th>状态</th><th>未决用途</th></tr>
+            <tr><th>来源</th><th>权利主体</th><th>状态</th><th>未允许用途</th></tr>
           </thead>
           <tbody>
             <tr v-for="item in items" :key="item.id">
@@ -113,7 +113,7 @@ function originLabel(origin) {
 
 function undecidedLabel(item) {
   const names = (item.undecided_purposes || []).map((purpose) => USAGE_PURPOSE_LABELS[purpose] || purpose)
-  return names.length ? names.join('、') : '没有未决用途'
+  return names.length ? names.join('、') : '没有未允许用途'
 }
 
 async function load() {

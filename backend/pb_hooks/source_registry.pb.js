@@ -34,11 +34,11 @@ routerAdd("DELETE", "/api/fangji/sources/{sourceId}", (c) => {
   const { requireWriter, findSource } = require(`${__hooks}/lib/source_registry.js`)
   requireWriter($app, c.auth)
   const source = findSource($app, c.request.pathValue("sourceId"))
-  try {
-    $app.delete(source)
-  } catch {
-    throw new BadRequestError("来源仍被项目或导入作业引用，请先解除关联")
-  }
+  const referenced = ["projects", "import_jobs"].some(
+    (collection) => $app.findRecordsByFilter(collection, `source = "${source.id}"`, "", 1, 0).length
+  )
+  if (referenced) throw new BadRequestError("来源仍被项目或导入作业引用，请先解除关联")
+  $app.delete(source)
   return c.json(200, { id: source.id, deleted: true })
 }, $apis.requireAuth("users"))
 

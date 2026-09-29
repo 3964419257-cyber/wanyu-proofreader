@@ -136,5 +136,28 @@ await api(`/api/fangji/projects/${project.id}/members/${reader.id}`, {
 })
 const pages = await api(`/api/collections/pages/records?filter=${encodeURIComponent(`project="${project.id}"`)}`, { token })
 assert.equal(pages.items.length, 1)
+await api('/api/fangji/sources', { token: readerAuth.token, status: 403 })
+await api(`/api/fangji/sources/${generated.id}/usages/public_display/gate`, { token: readerAuth.token, status: 403 })
+
+const stamped = await api(`/api/fangji/sources/${generated.id}/usages/public_display`, {
+  method: 'PUT',
+  token,
+  body: { decision: 'allow', evidence_ref: 'off-repo:stamp', decided_at: 'not-a-date' }
+})
+assert.notEqual(stamped.decided_at, '')
+assert.equal(String(stamped.decided_at).includes('not-a-date'), false)
+
+await api(`/api/fangji/sources/${generated.id}`, {
+  method: 'PATCH', token, status: 400, body: { logical_id: 'src-rewritten' }
+})
+const kept = await api(`/api/fangji/sources/${generated.id}`, { token })
+assert.equal(kept.logical_id, generated.logical_id)
+
+await api(`/api/fangji/sources/${generated.id}`, { method: 'DELETE', token, status: 400 })
+const projectAfter = await api(`/api/fangji/projects/${project.id}`, { token })
+assert.equal(projectAfter.source, generated.id)
+const jobAfter = await api(`/api/collections/import_jobs/records/${linkedJob.id}`, { token })
+assert.equal(jobAfter.source, generated.id)
+assert.equal(jobAfter.source_link, 'linked')
 
 console.log('PASS: source registry records six usage decisions, blocks unknown, and leaves unlinked imports marked source:unknown')

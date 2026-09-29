@@ -21,6 +21,8 @@ test('unknown and missing usage decisions block downstream', () => {
     registry.undecidedPurposes(registry.PURPOSES.map((purpose) => ({ purpose, decision: 'allow' }))),
     []
   )
+  const denied = registry.undecidedPurposes([{ purpose: 'internal_research', decision: 'deny' }])
+  assert.equal(denied.includes('internal_research'), true)
 })
 
 test('every registry code has a Chinese label', () => {
