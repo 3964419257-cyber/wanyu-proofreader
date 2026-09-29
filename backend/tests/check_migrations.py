@@ -99,6 +99,16 @@ SPECS = {
             'file_size': {'required': False},
         }),
     },
+    '1789200000_source_registry.js': {
+        'indexes': ['idx_sources_logical_id', 'idx_source_usages_purpose'],
+        'plans': [
+            ('sources', 'SELECT id FROM sources WHERE logical_id=?',
+             ('src-demo',), 'idx_sources_logical_id'),
+            ('source_usages', 'SELECT id FROM source_usages WHERE source=? AND purpose=?',
+             ('s', 'public_display'), 'idx_source_usages_purpose'),
+        ],
+        'collection_indexes': ('sources', 'idx_sources_logical_id'),
+    },
 }
 FIRST = '1788940000_initial_schema.js'
 
