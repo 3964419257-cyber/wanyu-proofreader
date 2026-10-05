@@ -244,7 +244,7 @@ function replayOnboarding() {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 1rem;
   align-items: center;
-  background: #fff;
+  background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 1.5rem;
@@ -310,15 +310,15 @@ function replayOnboarding() {
 
 .identity-state {
   padding: .2rem .55rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--gray-600);
   background: var(--gray-200);
   font-size: .78rem;
 }
 
 .identity-state.bound {
-  color: #166534;
-  background: #dcfce7;
+  color: var(--success-ink-deep);
+  background: var(--success-tint);
 }
 
 .identity-fields {

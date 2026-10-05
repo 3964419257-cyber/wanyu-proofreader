@@ -137,8 +137,13 @@ blob 里存了 CR（`i/crlf`、`i/mixed`）就失败。`make verify-static` 与 
 | `font_family_stacks` | 非令牌、非 `var()` 的含逗号字体栈声明次数；单字体 `@font-face` 不计 | 20 |
 
 颜色包含渐变、阴影、fallback 与内联静态样式；`#fff` 不会匹配 `#fff7ed`，CSS/HTML 注释、
-选择器、URL 与内容字符串不算色值。全量色值的细分计数随报告输出（当前 `#fff` 为 36 次，
-另外列出各函数与调色板外的具体色值）。字体栈按声明次数计，而非只抽取某一种字体栈。
+选择器、URL 与内容字符串不算色值。全量色值的细分计数随报告输出。2026-10-04 的初始盘点里
+`#fff` 为 36 次；令牌层合入后这一口径为 0，剩下的两处 `#fff` 写在 `--surface` 与 `--on-fill`
+的定义上，并各有一行白名单注释。字体栈按声明次数计，而非只抽取某一种字体栈。
+同一次令牌层把 `hardcoded_colors`、`border_radius_literals`、`z_index_literals`、
+`font_family_stacks`、`undefined_variables`、`custom_modals` 的上限降到当时的 `now`。
+`inline_styles` 与 `alerts_without_role` 的上限未改。上表的「初始上限」保留 #264 落地时的数字，
+现行上限以 `scripts/ui_debt_baseline.json` 为准。
 解析跨行标签并识别绑定类表达式里的字符串、绑定样式对象里的常量值；不执行 JavaScript，
 运行时拼接的样式/类、外部 CSS 不在覆盖范围。变量定义按整个源码目录判断，不证明运行时作用域可用。
 
