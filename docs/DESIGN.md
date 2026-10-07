@@ -8,11 +8,11 @@
 
 ## 基调
 
-活跃界面的产品名是「万语校坊」。`grep -n 方辑 frontend/src` 为 0 命中。字体族名仍是拉丁写法 `Fangji Phonetic` / `Fangji Rare Han`（`frontend/src/style.css:31`、`frontend/src/rare-fonts.css:3`），那是历史资源名，不是界面句子。
+活跃界面的产品名是「万语校坊」。`grep -rn 方辑 frontend/src` 为 0 命中。字体族名仍是拉丁写法 `Fangji Phonetic` / `Fangji Rare Han`（`frontend/src/style.css:31`、`frontend/src/rare-fonts.css:3`），那是历史资源名，不是界面句子。
 
 视觉基调是档案校勘工作台：纸色底、墨色字、朱砂点缀。对应令牌是 `--paper`、`--ink`、`--accent`（`frontend/src/style.css:14-17`）。本文件不重新定义配色。
 
-校对员界面不出现「一校」「二校」。`grep -n "一校\|二校" frontend/src` 在 `937eb3d` 为 0 命中。轮次只出现在管理员仲裁台（`frontend/src/views/admin/ArbitrationView.vue:16`）。
+校对员界面不出现「一校」「二校」。`grep -rn "一校\|二校" frontend/src` 在 `937eb3d` 为 0 命中。轮次只出现在管理员仲裁台（`frontend/src/views/admin/ArbitrationView.vue:16`）。
 
 ## 令牌
 
@@ -44,7 +44,7 @@
 
 | 缺失 | 证据 |
 | --- | --- |
-| `--surface` | `frontend/src/components/editor/DocumentReviewWorkspace.vue:205` 写了 `var(--surface, #fff)`。`grep -n -- "--surface" frontend/src` 只有这一处引用、零处定义 |
+| `--surface` | `frontend/src/components/editor/DocumentReviewWorkspace.vue:205` 写了 `var(--surface, #fff)`。`grep -rn -- "--surface" frontend/src` 只有这一处引用、零处定义 |
 | 间距刻度 `--space-*` | `:root` 无 `--space-`。`grep -c "\-\-space-" frontend/src/style.css` 为 0 |
 | 字号刻度 `--text-*` | `:root` 无 `--text-`。字号是字面 `rem`/`px` |
 | 字体别名 `--font-ui` / `--font-display` / `--font-mono` | 衬线栈在 `style.css` 内逐字复制。`grep -c "Fangji Phonetic" frontend/src/style.css` 为 20，分布在 `:31`、`:46` 以及其后 18 处 |
@@ -61,10 +61,10 @@
 
 | 组件 | 做什么 | 调用点 | 允许再内联 |
 | --- | --- | --- | --- |
-| `AppErrorBoundary` | 渲染异常时整页 `role="alert"`（`components/AppErrorBoundary.vue:2`） | `App.vue:2` | 否 |
+| `AppErrorBoundary` | 渲染异常时整页 `role="alert"`（`components/AppErrorBoundary.vue:3`） | `App.vue:2` | 否 |
 | `AppNavbar` | 顶栏、身份、出口 | `AdminLayout.vue:3`、`ProofreaderLayout.vue:3`、`WorkspaceHomeView.vue:3`、`ProjectDiscoveryView.vue:3` | 否 |
 | `UserAvatar` | 用户头像 | `AppNavbar.vue:13`、`ProfileView.vue:15` | 否 |
-| `AppModal` | 确认层：`role="dialog"`、`aria-modal`、Esc、焦点环绕（`components/AppModal.vue:3-16`，焦点算法 `lib/modalFocus.js`） | `ProofreadEditorView.vue:190`、`ArbitrationView.vue:181`、`ProjectDetailView.vue:596`、`ProofreaderOnboarding.vue:2` | 否。`modal-backdrop` 只允许出现在 `AppModal.vue`。`grep -n modal-backdrop frontend/src` 在 `937eb3d` 只有 `AppModal.vue:5` |
+| `AppModal` | 确认层：`role="dialog"`、`aria-modal`、Esc、焦点环绕（`components/AppModal.vue:3-16`，焦点算法 `lib/modalFocus.js`） | `ProofreadEditorView.vue:190`、`ArbitrationView.vue:181`、`ProjectDetailView.vue:596`、`ProofreaderOnboarding.vue:2` | 否。`.vue` 里的 `class="modal-backdrop"` 只允许出现在 `AppModal.vue`。`grep -rn modal-backdrop frontend/src` 还会命中 `style.css` 里的规则本体（`:559`）；判据是 `grep -rn "class=\"modal-backdrop" frontend/src --include="*.vue"` 只命中 `AppModal.vue:5`。棘轮 `custom_modals` 数的也是开始标签，不是 CSS 规则 |
 | `ProofreaderOnboarding` | 可跳过的校对引导 | `ProofreaderLayout.vue:13` | 否 |
 | `DocumentReviewWorkspace` | PDF 与字段的对照壳 | `ProofreadEditorView.vue:2`、`ArbitrationView.vue:2` | 否 |
 | `PdfSinglePageViewer` | 单页 PDF | `DocumentReviewWorkspace.vue:48` | 否 |
@@ -99,7 +99,7 @@
 | 领取任务 / 重新领取任务 | 校对员拿到一条材料 | 抢单、接单 | `ProofreadEditorView.vue:72` |
 | 仲裁 | 管理员处理不一致结果 | 审核、审批（那是条目状态名，不是这个动作） | `ArbitrationView.vue:16`、`DashboardView.vue:37` |
 | 万语校坊 | 产品名 | 方辑 | 见上文「基调」的 grep |
-| 校对员 | 做独立校对的人 | 一校、二校 | `grep -n "一校\|二校" frontend/src` 为 0 |
+| 校对员 | 做独立校对的人 | 一校、二校 | `grep -rn "一校\|二校" frontend/src` 为 0 |
 
 条目状态的中文标签以 `frontend/src/constants/pageStatus.js` 为准，不在本文件复制第二份。
 
@@ -127,11 +127,11 @@
 | 项 | 通过条件 | `937eb3d` |
 | --- | --- | --- |
 | 键盘焦点可见 | 焦点环相对相邻背景对比度 ≥ 3:1。PR 里写出前后色值与计算式 | 不通过。见上文 `--focus-ring` 行 |
-| 动态消息有角色 | `grep -n "class=\"alert" frontend/src` 的每一行都含 `role=` | 不通过。棘轮 `alerts_without_role` 上限 30 |
+| 动态消息有角色 | `grep -rn "class=\"alert" frontend/src` 的每一行都含 `role=` | 不通过。棘轮 `alerts_without_role` 上限 30 |
 | 状态不只靠颜色 | 疑点标记带「疑」或等价文字 | 通过。`style.css:536-537` |
 | 动效可关 | `prefers-reduced-motion` 规则仍在 | 通过。`style.css:640-641` |
 | 模态不丢焦点 | Tab 留在对话框内，Esc 关闭，关闭后焦点回到触发控件 | 算法在 `lib/modalFocus.js`，测试在 `frontend/tests/modalFocus.test.js`。调用点都走 `AppModal` |
-| 记音的 `lang` | 不在本清单里实施 | 归 #270。`grep -n "lang=" frontend` 目前主要是 `frontend/index.html` 的页面语言 |
+| 记音的 `lang` | 不在本清单里实施 | 归 #270。`grep -rn "lang=" frontend` 目前主要是 `frontend/index.html` 的页面语言 |
 
 ## 改动时要引用的小节
 

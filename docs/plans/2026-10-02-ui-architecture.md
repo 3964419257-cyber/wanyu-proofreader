@@ -24,8 +24,8 @@
 1. **疑点不靠颜色单独表意。** 标记样式只挂在 `.field-hint-*` 上，并且芯片带文字。位置：`frontend/src/style.css:536-541`。
 2. **动态 `alert` 必须有角色。** `python3 scripts/check_ui_debt.py --only alerts_without_role` 的 `now` 不得超过基线。清零归 #265。
 3. **键盘焦点必须看得见。** 表单控件不得用 `outline: none` 盖掉焦点环；环与相邻背景的对比度 ≥ 3:1。现状不满足，见 DESIGN.md「令牌」里的 `--focus-ring` 行。修复归 #266 与 #265，两边共用这一条验收。
-4. **对话框只有一个实现。** `grep -n modal-backdrop frontend/src` 只允许命中 `components/AppModal.vue`。焦点算法的测试是 `frontend/tests/modalFocus.test.js`。
-5. **字面界面值不得高于棘轮。** `python3 scripts/check_ui_debt.py` 对九类债务与 `scripts/ui_debt_baseline.json` 比较。减少债务时在同一支 PR 下调对应 `limit`（`CONTRIBUTING.md`「UI 债务棘轮」）。把某一类从 `warn` 改成 `fail` 要先在 #264 的后续记录里确认，不在本计划里改 `mode`。
+4. **对话框只有一个实现。** `grep -rn "class=\"modal-backdrop" frontend/src --include="*.vue"` 只允许命中 `components/AppModal.vue`。不带 `class=` 的全目录 `grep` 还会命中 `style.css` 里的规则本体，那一次不算第二个对话框。焦点算法的测试是 `frontend/tests/modalFocus.test.js`。
+5. **字面界面值不得高于棘轮。** `python3 scripts/check_ui_debt.py` 对九类债务与 `scripts/ui_debt_baseline.json` 比较。减少债务时在同一支 PR 下调对应 `limit`（`CONTRIBUTING.md`「UI 债务棘轮」）。把某一类从 `warn` 改成 `fail` 要先在 #264 的后续记录里确认，不在本计划里改 `mode`。在 `937eb3d` 上这条还不是全绿：`hardcoded_colors` 是 146/145，`inline_styles` 是 28/27，两类都是 `warn`，脚本退出 0。红线禁止的是再往上加；现状已经越界的两项要先降下来，不能把 warn 读成通过。
 
 ## 边界
 
@@ -56,6 +56,6 @@
 
 ## 明确不做
 
-- 不改视觉方向，不引入暗色主题（仓库里没有 `prefers-color-scheme` 规则；`grep -n prefers-color-scheme frontend/src` 为 0）。
+- 不改视觉方向，不引入暗色主题（仓库里没有 `prefers-color-scheme` 规则；`grep -rn prefers-color-scheme frontend/src` 为 0）。
 - 不在本计划里改任何 `.vue` 或 `style.css`。
 - 不承诺图标库、组件库或新的 CSS 框架。
