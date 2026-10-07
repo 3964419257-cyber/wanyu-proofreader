@@ -680,7 +680,7 @@ button.field-hint-chip:focus-visible { outline: 2px solid var(--primary); outlin
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  z-index: var(--z-modal);
+  z-index: var(--z-overlay);
   display: grid;
   padding: 1.5rem;
   place-items: center;
@@ -688,7 +688,7 @@ button.field-hint-chip:focus-visible { outline: 2px solid var(--primary); outlin
   backdrop-filter: blur(3px);
 }
 .confirmation-dialog {
-  display: grid;
+  display: grid; position: relative; z-index: var(--z-modal);
   width: min(100%, 560px);
   grid-template-columns: auto 1fr;
   gap: 1rem;

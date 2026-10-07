@@ -16,7 +16,7 @@
 
 ## 令牌
 
-定义位置只有 `frontend/src/style.css` 的 `:root`（`:6-35`）。下表是该处全部自定义属性。用途按引用处归纳，不是新设计。
+定义位置只有 `frontend/src/style.css` 的 `:root`（`:6-156`）。下面两张表按用途归纳调色板、字体、间距、圆角、层级和状态色，不是 `:root` 的逐条清单。其余名字列在表后，行号就是定义处。用途按引用处归纳，不是新设计。
 
 | 名称 | 值 | 用途 | 定义 |
 | --- | --- | --- | --- |
@@ -56,9 +56,11 @@
 | `--text-xs` … `--text-2xl` | `.75rem` 到 `2rem` | 字号刻度。现有 `font-size` 仍是字面值，新代码用这组名字 | `:66-71` |
 | `--radius-sm` / `--radius-md` / `--radius-lg` / `--radius-pill` | `6px` / `var(--radius)` / `14px` / `999px` | 圆角主刻度 | `:75`、`:80`、`:82`、`:84` |
 | `--radius-none` `--radius-hairline` `--radius-key` `--radius-nav` `--radius-tight` `--radius-panel` `--radius-mark` `--radius-card` `--radius-auth` `--radius-circle` `--radius-inset` | 见 `:72-86` | 已经出现过的其余圆角，保留原像素，避免把 16px 登录卡收成 14px | `:72-86` |
-| `--z-mask` `--z-local` `--z-float` `--z-raised` `--z-sticky-bar` `--z-dropdown` `--z-sticky` `--z-overlay` `--z-modal` | `1` `2` `5` `8` `9` `10` `100` `400` `500` | 层级。`z-index` 属性不再写数字 | `:87-95` |
+| `--z-mask` `--z-local` `--z-float` `--z-raised` `--z-sticky-bar` `--z-dropdown` `--z-sticky` `--z-overlay` `--z-modal` | `1` `2` `5` `8` `9` `10` `100` `400` `500` | 层级。遮罩层是 `--z-overlay`（`.modal-backdrop` `:683`），对话框卡片是 `--z-modal`（`.confirmation-dialog` `:691`）。卡片在遮罩内部，页面上的层叠高度仍是遮罩的 400 | `:87-95` |
 | `--danger-bg` `--warn-bg` `--success-bg` `--info-bg` 及同组边框/文字 | 见 `:96-120` | `.alert-*`（`:235-238`） | `:96-120` |
 | `--badge-*` | 见 `:121-131` | 条目状态徽章（`:313` 起） | `:121-131` |
+
+上表用省略号和「同组」覆盖中间档，不是漏记：`--gray-100` 到 `--gray-800`、`--space-2` 到 `--space-5`、`--text-sm` 到 `--text-xl`、`:96-120` 里未点名的边框与文字色、以及 `:121-131` 的每一个 `--badge-*`，都在对应行的行号范围内。上表没有逐条展开、也不在那些范围内的，仍在同一个 `:root` 里：半透明表面 `--surface-nav` `--surface-float` `--surface-bar` `--surface-chip`（`:34-37`）；弱边线 `--line-faint` `--line-nav` `--line-card`（`:40-42`）；辉光 `--ink-glow` `--ink-glow-hover` `--ink-glow-tight` `--primary-glow` `--primary-glow-soft` `--primary-line` `--accent-glow`（`:44-50`）；石板阴影 `--slate-shadow` `--slate-shadow-soft`（`:51-52`）；PDF 底 `--pdf-grid` `--pdf-mask`（`:53-54`）；`:96-120` 里的热警告与其余状态边/字色已算在「同组」行；差异与纸色 `--diff-del-bg` `--diff-del-ink` `--source-wash` `--paper-bright` `--paper-quiet`（`:132-136`）；登录 `--auth-shade` `--auth-sand`（`:137-138`）；工作状态 `--work-active-bg` `--work-active-ink` `--work-complete-bg` `--work-complete-ink` `--work-complete-edge`（`:139-143`）；`--selection-border` `--arbitration-border`（`:144-145`）；石板填充与 PDF 工具条 `--slate-fill` `--slate-fill-strong` `--pdf-track` `--pdf-track-strong` `--pdf-toolbar` `--pdf-ink`（`:146-151`）。
 
 `#fff` 在棘轮口径（不计 `--token` 定义，也不把 `#fff7ed` 算成 `#fff`）下为 0 次。源码里剩下的两处 `#fff` 都在 `:31` 和 `:32`，各有一行白名单注释。
 
