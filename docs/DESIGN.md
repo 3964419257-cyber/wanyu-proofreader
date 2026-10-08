@@ -104,7 +104,7 @@
 | error | `alert alert-error` 且 `role="alert"` | 视图各自的失败句 | 类在 `style.css:235`。`python3 scripts/check_ui_debt.py --only alerts_without_role` 的 `now` 为 0，基线上限 0 |
 | danger | `btn-danger`（`style.css:201`）；设置里的 `.danger-zone`（`:309`）；提交确认里的不可逆句用 `role="alert"` | 「提交后将完成条目…」一类永久保留的说明 | `ArbitrationView.vue:163`；校对确认框 `ProofreadEditorView.vue:204` |
 
-成功与进行中的提示用 `alert alert-success` 或无修饰 `alert`，角色是 `role="status"`。错误是 `role="alert"`。长期收口仍归 #267 的 `AppStatusPanel`，避免以后靠 grep 维持。
+成功与进行中的提示用 `alert alert-success` 或无修饰 `alert`，角色是 `role="status"`。一直显示、文案不随操作改写的说明用 `role="note"`（`NewProjectView.vue:8`）。错误是 `role="alert"`。长期收口仍归 #267 的 `AppStatusPanel`，避免以后靠 grep 维持。
 
 状态不单独靠颜色。机器疑点芯片始终带文字，规则写在 `style.css:657-658`，芯片结构在 `:662`。
 

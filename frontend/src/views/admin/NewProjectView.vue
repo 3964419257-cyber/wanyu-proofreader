@@ -5,7 +5,7 @@
       <h2 class="font-bold" style="font-size:1.5rem">创建新项目</h2>
     </div>
 
-    <div class="alert mb-4" role="status">
+    <div class="alert mb-4" role="note">
       <strong>创建后如何准备文件？</strong>
       <p class="text-sm mt-2">
         可仅上传 PDF（只提供原文预览）、仅导入 CSV（可校对但没有原文预览），
