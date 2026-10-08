@@ -56,7 +56,7 @@
 | `--text-xs` … `--text-2xl` | `.75rem` 到 `2rem` | 字号刻度。现有 `font-size` 仍是字面值，新代码用这组名字 | `:66-71` |
 | `--radius-sm` / `--radius-md` / `--radius-lg` / `--radius-pill` | `6px` / `var(--radius)` / `14px` / `999px` | 圆角主刻度 | `:75`、`:80`、`:82`、`:84` |
 | `--radius-none` `--radius-hairline` `--radius-key` `--radius-nav` `--radius-tight` `--radius-panel` `--radius-mark` `--radius-card` `--radius-auth` `--radius-circle` `--radius-inset` | 见 `:72-86` | 已经出现过的其余圆角，保留原像素，避免把 16px 登录卡收成 14px | `:72-86` |
-| `--z-mask` `--z-local` `--z-float` `--z-raised` `--z-sticky-bar` `--z-dropdown` `--z-sticky` `--z-overlay` `--z-modal` | `1` `2` `5` `8` `9` `10` `100` `400` `500` | 层级。遮罩层是 `--z-overlay`（`.modal-backdrop` `:683`），对话框卡片是 `--z-modal`（`.confirmation-dialog` `:691`）。卡片在遮罩内部，页面上的层叠高度仍是遮罩的 400 | `:87-95` |
+| `--z-mask` `--z-local` `--z-float` `--z-raised` `--z-sticky-bar` `--z-dropdown` `--z-sticky` `--z-overlay` `--z-modal` | `1` `2` `5` `8` `9` `10` `100` `400` `500` | 层级。遮罩是 `--z-overlay`（`.modal-backdrop` `:683`）。对话框卡片是 `position: relative` 且 `z-index: var(--z-modal)`（`.confirmation-dialog` `:691`），这个 500 只在遮罩自己的层叠上下文里排序，页面上的高度仍是遮罩的 400 | `:87-95` |
 | `--danger-bg` `--warn-bg` `--success-bg` `--info-bg` 及同组边框/文字 | 见 `:96-120` | `.alert-*`（`:235-238`） | `:96-120` |
 | `--badge-*` | 见 `:121-131` | 条目状态徽章（`:313` 起） | `:121-131` |
 
@@ -70,7 +70,7 @@
 - 现环：`--primary` `#315f68`。对 `#fff` 为 **7.08:1**，对 `--paper` `#f6f3ec` 为 **6.39:1**。都高于 3:1。
 - 规则：`.form-control:focus`（`:218`）与 `:focus-visible`（`:221-223`）都是 `3px solid var(--focus-ring)`。没有 `outline: none`。
 
-键盘键和校对输入框原先各有一套缺字的字体栈（少了 `Noto Serif SC` 或混用了 `Noto Sans`）。两处现在都用 `--font-ui`（`.ipa-key` `:412`，`.proofread-textarea` `:675`）。回退字体因此和页面正文一致。
+键盘键、校对输入框和仲裁终值输入框原先各有一套缺字的字体栈。三处现在都用 `--font-ui`（`.ipa-key` `:412`，`.proofread-textarea` `:675`，`.final-value textarea` `:919`）。`--font-ui` 把 `-apple-system`、`BlinkMacSystemFont`、`Segoe UI` 排在 `Fangji Rare Han` 之前；同一码位若系统界面字体也覆盖，会先用系统字形。哪一层该赢归 #270。
 
 债务计数的口径写在 `CONTRIBUTING.md` 的「UI 债务棘轮」。
 
