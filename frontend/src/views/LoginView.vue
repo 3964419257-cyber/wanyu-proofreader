@@ -163,7 +163,7 @@ async function handleLogin() {
 
 .auth-method {
   border: 0;
-  border-radius: calc(var(--radius) - 3px);
+  border-radius: var(--radius-inset);
   padding: .65rem .75rem;
   color: var(--gray-600);
   background: transparent;
@@ -173,8 +173,8 @@ async function handleLogin() {
 
 .auth-method.active {
   color: var(--primary);
-  background: #fff;
-  box-shadow: 0 1px 4px rgb(15 23 42 / 10%);
+  background: var(--surface);
+  box-shadow: 0 1px 4px var(--slate-shadow-soft);
   font-weight: 600;
 }
 </style>

@@ -202,5 +202,5 @@ function applyPdfPageInput() {
 
 <style scoped>
 .editor-panel-body--pdf { position: relative; }
-.pdf-transition-mask { position: absolute; inset: 0; z-index: 1; background: var(--surface, #fff); }
+.pdf-transition-mask { position: absolute; inset: 0; z-index: var(--z-mask); background: var(--surface); }
 </style>
