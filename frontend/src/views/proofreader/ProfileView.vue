@@ -15,7 +15,7 @@
       <UserAvatar :user="auth.user" style="width:4rem;height:4rem;margin-bottom:1rem" />
       <form @submit.prevent="saveProfile">
         <div class="form-group">
-          <label for="profile-name" class="form-label">昵称</label>
+          <label for="profile-name" class="form-label">昵称（唯一，可用于登录）</label>
           <input id="profile-name" v-model="profile.name" class="form-control" autocomplete="nickname" required :disabled="savingProfile" />
         </div>
         <div class="form-group">
@@ -110,7 +110,7 @@
                   @click="bindProvider(provider)"
                 >{{ bindingProvider === provider.id ? '验证中...' : '验证并绑定' }}</button>
               </div>
-              <div v-if="bindingError[provider.id]" class="alert alert-error mt-3">{{ bindingError[provider.id] }}</div>
+              <div v-if="bindingError[provider.id]" class="alert alert-error mt-3" role="alert">{{ bindingError[provider.id] }}</div>
             </template>
           </div>
         </div>
