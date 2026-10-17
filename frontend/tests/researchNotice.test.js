@@ -39,6 +39,14 @@ test('onboarding repeats the research notice before submit', () => {
   assert.match(editor, /if \(!researchDecided\.value\) return/)
 })
 
+test('editor browser fixtures already have a research choice', () => {
+  for (const file of ['review.cjs', 'modal.cjs']) {
+    const source = readFileSync(new URL(`./browser/${file}`, import.meta.url), 'utf8')
+    assert.match(source, /research-notice/)
+    assert.match(source, /decided:\s*true/)
+  }
+})
+
 test('the source panel says a downloaded copy cannot be recalled', () => {
   const workspace = readFileSync(new URL('../src/components/editor/DocumentReviewWorkspace.vue', import.meta.url), 'utf8')
   assert.match(workspace, /已经下载的副本无法收回/)
