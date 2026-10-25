@@ -39,6 +39,16 @@ test('onboarding repeats the research notice before submit', () => {
   assert.match(editor, /if \(!researchDecided\.value\) return/)
 })
 
+test('profile can change a research choice after the first decision', () => {
+  const profile = readFileSync(new URL('../src/views/proofreader/ProfileView.vue', import.meta.url), 'utf8')
+  assert.match(profile, /reviseResearchNotice\('opt_out'\)/)
+  assert.match(profile, /reviseResearchNotice\('participate'\)/)
+  assert.match(profile, /退出研究，继续校对/)
+  const editor = readFileSync(new URL('../src/views/proofreader/ProofreadEditorView.vue', import.meta.url), 'utf8')
+  assert.match(editor, /message\.includes\('研究用途'\)/)
+  assert.match(editor, /await loadResearchNotice\(\)/)
+})
+
 test('editor browser fixtures already have a research choice', () => {
   for (const file of ['review.cjs', 'modal.cjs']) {
     const source = readFileSync(new URL(`./browser/${file}`, import.meta.url), 'utf8')

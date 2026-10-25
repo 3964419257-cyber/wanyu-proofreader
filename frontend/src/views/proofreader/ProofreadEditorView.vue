@@ -832,6 +832,7 @@ async function submitProofread() {
 
   } catch (e) {
     const message = getPbMessage(e, '提交失败，请重试')
+    if (message.includes('研究用途')) await loadResearchNotice()
     if (isLeaseFailure(message)) markLeaseLost(message)
     else saveError.value = message
   } finally {
