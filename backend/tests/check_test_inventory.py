@@ -29,20 +29,44 @@ RUNNER = 'backend/tests/run_integration.py'
 MATRIX_SUITE = re.compile(r'\$\{\{\s*matrix\.suite(?![A-Za-z0-9_])')
 
 
+def strip_shell_comments(script):
+    """Drop full-line shell comments from a `run:` scalar.
+
+    A suite name is satisfied by being *executed*, not by being described. Without
+    this, `wc -l` of a comment block counts as coverage: the scheme conversion
+    browser suite was kept green by a single comment naming its file, which was
+    that file name's only appearance anywhere in the workflow.
+    """
+    return '\n'.join(line for line in script.splitlines() if not line.lstrip().startswith('#'))
+
+
 def run_commands(workflow):
     """Every script CI would actually execute, one entry per job."""
     commands = {}
     for name, job in (workflow.get('jobs') or {}).items():
         scripts = [str(step['run']) for step in (job.get('steps') or [])
                    if isinstance(step, dict) and step.get('run')]
-        commands[name] = '\n'.join(scripts)
+        commands[name] = strip_shell_comments('\n'.join(scripts))
     return commands
 
 
 def runner_steps(job):
     """The `run:` scripts of this job that invoke the suite runner."""
     return [str(step['run']) for step in (job.get('steps') or [])
-            if isinstance(step, dict) and step.get('run') and RUNNER in str(step['run'])]
+            if isinstance(step, dict) and step.get('run')
+            and RUNNER in strip_shell_comments(str(step['run']))]
+
+
+def self_test():
+    """The matching above must not be satisfiable by a comment.
+
+    Always run, and in-process: the failure it guards against is invisible from the
+    outside — the guard stays green while the CI step it claims exists is only a
+    comment. If a later edit stops stripping comments, this goes red immediately
+    instead of quietly widening what counts as coverage.
+    """
+    workflow = {'jobs': {'a-job': {'steps': [{'run': '# backend/tests/only_a_comment.mjs\n'}]}}}
+    return 'only_a_comment.mjs' not in '\n'.join(run_commands(workflow).values())
 
 
 def suite_matrix_jobs(workflow):
@@ -94,16 +118,18 @@ def ci_builds_matrix_from_registry(workflow):
 
 
 def main():
-    entries = json.loads((TESTS / 'suites.json').read_text())
+    entries = json.loads((TESTS / 'suites.json').read_text(encoding='utf-8'))
     registered = {entry['suite']: entry for entry in entries}
     on_disk = sorted(path.name for path in TESTS.glob('*_integration.mjs'))
-    workflow = yaml.safe_load(CI.read_text())
+    workflow = yaml.safe_load(CI.read_text(encoding='utf-8'))
     commands = run_commands(workflow)
     executed = '\n'.join(commands.values())
     problems = []
 
     if not executed.strip():
         problems.append('ci.yml declares no runnable steps at all')
+    if not self_test():
+        problems.append('this checker no longer strips shell comments: a comment can keep a claim green')
     matrix_driven = ci_builds_matrix_from_registry(workflow)
     if not matrix_driven:
         problems.append(f'ci.yml does not feed suites.json into {MATRIX_JOB} through {PREPARE_JOB}')
@@ -133,7 +159,7 @@ def main():
         if check not in executed:
             problems.append(f'{check}: exists but no CI step executes it')
 
-    if 'make check' not in CONTRIBUTING.read_text():
+    if 'make check' not in CONTRIBUTING.read_text(encoding='utf-8'):
         problems.append('CONTRIBUTING.md does not document `make check`')
 
     if problems:

@@ -64,9 +64,18 @@ func main() {
 	importer.registerPDFPreview()
 	importer.registerPagination()
 	importer.registerArtifacts()
+	importer.registerDeliveries(hooksDir)
+	importer.registerProjectExport()
 	importer.registerQualityState()
+	importer.registerImportLedger()
 	importer.registerBundleImports()
 	importer.registerPageContent()
+
+	if err := importer.registerSchemeConversion(); err != nil {
+		// 规则文件坏掉就整实例起不来（#189：非法即启动报错，不要静默半生效）。
+		// 目录未配置不是错误，是「本实例还没有可用方案」这个合法状态。
+		log.Fatal(err)
+	}
 
 	identityProviders := make([]externalIdentityProvider, 0, 1)
 	if hinghwaBaseURL := os.Getenv("HINGHWA_IDENTITY_BASE_URL"); hinghwaBaseURL != "" {

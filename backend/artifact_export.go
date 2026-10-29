@@ -10,6 +10,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/pocketbase/dbx"
 	"github.com/pocketbase/pocketbase/apis"
 	"github.com/pocketbase/pocketbase/core"
 	"github.com/pocketbase/pocketbase/forms"
@@ -31,7 +32,7 @@ func (s *importService) registerArtifacts() {
 	})
 }
 
-// toSafeCsvCell 移植自前端 frontend/src/lib/csvExport.js:1-10，逐字节对齐：
+// toSafeCsvCell 是产物与流式导出共用的 CSV 转义实现：
 //  1. 若以（可含前导 tab/CR/空格）`=`/`+`/`-`/`@` 开头，前置单引号；
 //  2. 若含 `"`/`,`/`\r`/`\n` 任一，双引号包裹并把内部 `"` 转义为 `""`。
 var (
@@ -135,6 +136,7 @@ func orderedRowHeaders(saved []string, rowObj *orderedObject) []string {
 type exportedRow struct {
 	pageNumber string
 	rowObj     *orderedObject
+	metadata   map[string]any
 }
 
 // buildCSVText 把表头与行拼成导出的 CSV 文本（BOM + CRLF）。
@@ -158,6 +160,25 @@ func buildCSVText(finalHeaders []string, headers []string, rows []exportedRow) s
 	return "\uFEFF" + strings.Join(lines, "\r\n")
 }
 
+// exportRowObject is shared by retained CSV artifacts, streamed downloads and result deliveries.
+func exportRowObject(page *core.Record) *orderedObject {
+	var rowObj *orderedObject
+	if page.GetString("status") == "approved" {
+		rowObj = parseRowJSON(page.GetString("proofread_row_json"))
+	}
+	if rowObj == nil {
+		rowObj = parseRowJSON(page.GetString("ocr_row_json"))
+	}
+	if rowObj == nil {
+		text := page.GetString("ocr_text")
+		if page.GetString("status") == "approved" && page.GetString("proofread_text") != "" {
+			text = page.GetString("proofread_text")
+		}
+		rowObj = &orderedObject{keys: []string{"内容"}, values: map[string]any{"内容": text}}
+	}
+	return rowObj
+}
+
 func (s *importService) exportCSV(c *core.RequestEvent) error {
 	projectID := c.Request.PathValue("projectId")
 	auth, _, err := s.requireProjectManager(c, projectID)
@@ -170,15 +191,30 @@ func (s *importService) exportCSV(c *core.RequestEvent) error {
 		return apis.NewNotFoundError("项目不存在。", err)
 	}
 
-	pages, err := s.app.FindRecordsByFilter(
-		"pages",
-		fmt.Sprintf(`project = %q && status != "importing"`, projectID),
-		"page_number",
-		200000,
-		0,
-	)
+	// Retained #123 artifacts share the same default withheld predicate, so the
+	// storage endpoint cannot become a silent opt-in around the new download.
+	query := c.Request.URL.Query()
+	for key := range query {
+		if key != "include_withheld" {
+			return apis.NewBadRequestError("留存产物仅支持 include_withheld；筛选导出请使用只读下载接口。", nil)
+		}
+	}
+	options, err := parseProjectExportOptions(query, nil)
 	if err != nil {
-		return apis.NewBadRequestError("读取项目条目失败。", err)
+		return apis.NewBadRequestError(err.Error(), nil)
+	}
+	where, params := projectExportWhere(projectID, options)
+	var pages []*core.Record
+	for offset := 0; ; offset += 1000 {
+		var batch []*core.Record
+		readErr := s.app.RecordQuery("pages").AndWhere(dbx.NewExp(where, params)).OrderBy("page_number", "id").Limit(1000).Offset(int64(offset)).All(&batch)
+		if readErr != nil {
+			return apis.NewBadRequestError("读取项目条目失败。", readErr)
+		}
+		pages = append(pages, batch...)
+		if len(batch) < 1000 {
+			break
+		}
 	}
 	if len(pages) == 0 {
 		return apis.NewBadRequestError("当前项目暂无可导出的条目", nil)
@@ -187,19 +223,11 @@ func (s *importService) exportCSV(c *core.RequestEvent) error {
 	headers := []string{}
 	rows := make([]exportedRow, 0, len(pages))
 	for _, page := range pages {
-		var rowObj *orderedObject
-		if page.GetString("status") == "approved" {
-			rowObj = parseRowJSON(page.GetString("proofread_row_json"))
-		}
-		if rowObj == nil {
-			rowObj = parseRowJSON(page.GetString("ocr_row_json"))
-		}
-		if rowObj == nil {
-			text := page.GetString("proofread_text")
-			if text == "" {
-				text = page.GetString("ocr_text")
-			}
-			rowObj = &orderedObject{keys: []string{"内容"}, values: map[string]any{"内容": text}}
+		rowObj := exportRowObject(page)
+		valueSource := "imported_fallback"
+		if page.GetString("status") == "approved" && (parseRowJSON(page.GetString("proofread_row_json")) != nil ||
+			(parseRowJSON(page.GetString("ocr_row_json")) == nil && page.GetString("proofread_text") != "")) {
+			valueSource = "final_adopted_value"
 		}
 
 		saved := []string{}
@@ -218,14 +246,46 @@ func (s *importService) exportCSV(c *core.RequestEvent) error {
 		} else if n := page.GetInt("page_number"); n != 0 {
 			pageNumber = strconv.Itoa(n)
 		}
-		rows = append(rows, exportedRow{pageNumber: pageNumber, rowObj: rowObj})
+		verification := "legacy_unrecorded"
+		if page.GetString("verification_basis") != "" {
+			verification = "recorded_check_current_completion_export"
+		}
+		if page.GetBool("verification_hold") {
+			verification = "deferred_review"
+		}
+		if page.GetBool("verification_needs_recheck") {
+			verification = "needs_source_recheck"
+		}
+		if page.GetBool("source_empty") {
+			verification = "empty_source_not_a_completed_result"
+		}
+		rows = append(rows, exportedRow{pageNumber: pageNumber, rowObj: rowObj, metadata: map[string]any{
+			"__wanyu_id": page.Id, "__wanyu_workflow_status": page.GetString("status"),
+			"__wanyu_value_source": valueSource, "__wanyu_verification_record": verification,
+			"__wanyu_business_completion":   "not_evaluated_use_completed_export",
+			"__wanyu_source_judgment":       "see_linked_process_export",
+			"__wanyu_independent_reference": "see_independent_research_records",
+		}})
+	}
+	// This historical endpoint is a full project export. Incomplete/fallback and
+	// legacy values must carry their status. The verification-export endpoint
+	// supplies the current completed subset and linked field/process records.
+	for _, name := range []string{"__wanyu_id", "__wanyu_workflow_status", "__wanyu_value_source", "__wanyu_verification_record", "__wanyu_business_completion", "__wanyu_source_judgment", "__wanyu_independent_reference"} {
+		column := name
+		for containsStr(headers, column) {
+			column += "_"
+		}
+		headers = append(headers, column)
+		for _, row := range rows {
+			row.rowObj.set(column, row.metadata[name])
+		}
 	}
 
 	finalHeaders := append([]string{"PDF页码"}, headers...)
 	csvText := buildCSVText(finalHeaders, headers, rows)
 
 	safeName := regexp.MustCompile(`[\\/:*?"<>|]`).ReplaceAllString(project.GetString("name"), "_")
-	const nameSuffix = "_校对结果.csv"
+	const nameSuffix = "_全量校对记录.csv"
 	// project_artifacts.file_name 上限 500 码点（text max 按码点计）。项目名允许
 	// 正好 500 码点，截到 500 - 后缀长度，避免落库校验在用户看不到的地方失败。
 	if extra := utf8.RuneCountInString(safeName) + utf8.RuneCountInString(nameSuffix) - 500; extra > 0 {

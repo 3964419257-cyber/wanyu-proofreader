@@ -90,6 +90,65 @@ def free_port():
 
 
 
+# 一次性测试实例里的合成适配器。这里要解决的问题不是「夹具能不能跑作业」，而是
+# 「由谁决定它能不能」：声明（rule_status）加契约（schema_version）两道判据缺一不可，
+# 见 backend/scheme_conversion.go 的 jobAdapter。仓库里的 adapter_synthetic.json 写的是
+# test，那是它的实情，不能为了跑测试把它改掉——改掉就等于把闸门本身拆了。
+#
+# 另一道判据是构建标签：v1 规则在**生产构建**里无论如何都不能创建真实作业。scheme
+# 的两个 runner 以 `-tags schemetest` 编译一次性二进制，只有那个二进制放行 v1。
+# 换句话说，下面这份「可运行副本」能被跑，是因为这是测试构建，不是因为它把
+# rule_status 改成了 production。
+#
+# 所以脚手架另写一份**可运行副本**，与夹具并排放在同一个临时规则目录里：
+#   * 另一个 source_scheme_id —— 两份文件撞同一个注册表键是启动期错误；
+#   * rule_status=production —— 这份副本**只**活在一次性的临时目录里，服务端与数据库都是
+#     临时的、没有真实数据，作业跑完随目录一起消失；
+#   * rule_status_basis 把上面这件事写成规则文件里的一行字，谁打开临时目录都读得到。
+# 夹具本体照原样复制过去，好让套件能实测「仓库里那份声明确实是 test、而且确实建不出作业」。
+# 两份都在，闸门的两侧才都有证据。
+RUNNABLE_SCHEME = 'synthetic-runnable'
+
+
+def write_scheme_adapters(adapters_dir, source=None):
+    """Materialise a disposable adapter directory: the repo fixture plus a runnable copy."""
+    adapters_dir = Path(adapters_dir)
+    adapters_dir.mkdir(parents=True, exist_ok=True)
+    fixture = (source or BACKEND / 'scheme' / 'testdata' / 'adapter_synthetic.json').read_text(encoding='utf-8')
+    (adapters_dir / 'adapter_synthetic.json').write_text(fixture, encoding='utf-8')
+
+    runnable = json.loads(fixture)
+    runnable['source_scheme_id'] = RUNNABLE_SCHEME
+    runnable['rule_status'] = 'production'
+    runnable['rule_status_comment'] = (
+        '本副本的 rule_status 是 production，因为这份文件只存在于一次性的临时规则目录里；'
+        '规则内容仍然是合成的，见 comment 与每条 basis。'
+    )
+    runnable['rule_status_basis'] = (
+        '仅测试：由 backend/tests/harness.py 的 write_scheme_adapters 从 adapter_synthetic.json 复制而来，'
+        '只供一次性实例使用（临时目录、临时数据库、没有真实数据）。'
+        '仓库里那份夹具声明 rule_status=test，它才是这两份文件里代表真实情况的那一份。'
+    )
+    (adapters_dir / 'adapter_runnable.json').write_text(
+        json.dumps(runnable, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+
+RULES_UPGRADED_VERSION = 'synthetic-v2'
+
+
+def upgrade_runnable_rule_version(adapters_dir):
+    """Bump the runnable copy's rule_version in place, to stage a mid-job rule upgrade.
+
+    Called between two server starts: the registry is read once at startup, so a rule
+    upgrade that is supposed to be seen by the resumed job has to land before the server
+    that resumes it comes up.
+    """
+    path = Path(adapters_dir) / 'adapter_runnable.json'
+    adapter = json.loads(path.read_text(encoding='utf-8'))
+    adapter['rule_version'] = RULES_UPGRADED_VERSION
+    path.write_text(json.dumps(adapter, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+
 def build_binary(dest, race=False):
     command = ['go', 'build']
     if race:
@@ -118,7 +177,7 @@ def server(binary, root, extra_env=None, data=None, migrations=MIGRATIONS, hooks
     apply_migrations_individually(binary, data, migrations)
     port = free_port()
     env = integration_env(f'http://127.0.0.1:{port}', extra_env)
-    with (root / 'server.log').open('a') as log:
+    with (root / 'server.log').open('a', encoding='utf-8') as log:
         process = subprocess.Popen([str(binary), 'serve', f'--http=127.0.0.1:{port}', f'--dir={data}',
                                     f'--hooksDir={hooks}', f'--migrationsDir={migrations}',
                                     '--hooksWatch=false'], env=env, stdout=log, stderr=log)
@@ -135,6 +194,7 @@ def server(binary, root, extra_env=None, data=None, migrations=MIGRATIONS, hooks
                 raise RuntimeError('Temporary server did not become ready\n' + _log_tail(root))
             yield env
         finally:
+            stopped_by_harness = process.poll() is None
             process.terminate()
             try:
                 process.wait(timeout=10)
@@ -143,7 +203,7 @@ def server(binary, root, extra_env=None, data=None, migrations=MIGRATIONS, hooks
         log_text = _log_tail(root, size=10 ** 6)
         if 'DATA RACE' in log_text:
             raise RuntimeError('race detector reported a data race:\n' + _race_excerpt(log_text))
-        if process.returncode not in (0, -15, 143):
+        if not _server_exit_ok(process.returncode, stopped_by_harness):
             raise RuntimeError(f'server exited {process.returncode}\n{_log_tail(root)}')
 
 
@@ -175,10 +235,18 @@ def _race_excerpt(text):
     return text[start if start >= 0 else 0:][:4000]
 
 
+def _server_exit_ok(returncode, stopped_by_harness, platform=os.name):
+    # Windows Popen.terminate uses TerminateProcess(..., 1). Only accept that
+    # status when this harness observed a live server and initiated its shutdown;
+    # a server that actually failed with exit 1 must still fail the suite.
+    return returncode in (0, -15, 143) or (
+        platform == 'nt' and stopped_by_harness and returncode == 1)
+
+
 def _log_tail(root, size=20000):
     # Only disposable, generated test identities are present in this log.
     try:
-        return (Path(root) / 'server.log').read_text()[-size:]
+        return (Path(root) / 'server.log').read_text(encoding='utf-8', errors='replace')[-size:]
     except OSError:
         return '<no server.log>'
 
@@ -198,7 +266,7 @@ def temporary_root(keep=False):
 
 def discover_registry():
     """Return the registered suite entries in run order; suites.json is the source of truth."""
-    entries = json.loads((BACKEND / 'tests' / 'suites.json').read_text())
+    entries = json.loads((BACKEND / 'tests' / 'suites.json').read_text(encoding='utf-8'))
     registered = [entry['suite'] for entry in entries]
     missing = [suite for suite in registered if not (BACKEND / 'tests' / suite).exists()]
     if missing:

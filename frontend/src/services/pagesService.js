@@ -65,6 +65,10 @@ export async function listAdminProjectPages(projectId, query) {
   return pb.send(`/api/fangji/projects/${encodeURIComponent(projectId)}/pages`, { query, requestKey: null })
 }
 
+export async function getAdminProjectPageStats(projectId) {
+  return pb.send(`/api/fangji/projects/${encodeURIComponent(projectId)}/pages/stats`, { requestKey: null })
+}
+
 export async function listProofreaderTasks(userId, page, perPage) {
   return listPagesWithFallback({
     page,
@@ -129,13 +133,6 @@ export async function listAllProjectPages(projectId, options = {}) {
   })
 }
 
-export async function listAllPages(options = {}) {
-  return pb.collection('pages').getFullList({
-    requestKey: null,
-    ...options
-  })
-}
-
 export async function getPagedProjectPages(projectId, page, perPage, options = {}) {
   return pb.collection('pages').getList(page, perPage, {
     filter: `project="${projectId}"`,
@@ -179,11 +176,11 @@ export async function releaseTaskLease(pageId, leaseToken) {
   })
 }
 
-export async function submitTwoPassProofread(pageId, userId, { rowJson, text, leaseToken }) {
+export async function submitTwoPassProofread(pageId, userId, { rowJson, text, leaseToken, ...verification }) {
   if (!pageId || !userId) throw new Error('缺少任务或校对员身份')
   return pb.send(`/api/fangji/pages/${encodeURIComponent(pageId)}/submit`, {
     method: 'POST',
-    body: { rowJson, text, leaseToken },
+    body: { rowJson, text, leaseToken, ...verification },
     requestKey: null
   })
 }
@@ -204,6 +201,9 @@ export async function getPageFindings(pageId) {
       suppressedByGate: Number.isFinite(Number(result?.suppressed_by_gate))
         ? Math.max(0, Math.floor(Number(result.suppressed_by_gate))) : 0,
       gateRowsTruncated: Boolean(result?.gate_rows_truncated)
+      , inputVersion: result?.input_version || '', candidateCount: result?.candidate_count ?? null,
+      countsAreLowerBounds: Boolean(result?.counts_are_lower_bounds), offsetsStale: result?.offsets_stale || 0, offsetsUnbaselined: result?.offsets_unbaselined || 0
+      , research: result?.research || null
     }
   } catch {
     return { page: String(pageId), hints: [], truncated: false, suppressedByGate: 0, gateRowsTruncated: false }

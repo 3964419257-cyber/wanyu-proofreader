@@ -66,9 +66,19 @@ const routes = [
         component: () => import('@/views/admin/ProjectDetailView.vue')
       },
       {
+        path: 'projects/:id/deliveries',
+        name: 'ProjectDeliveries',
+        component: () => import('@/views/admin/DeliveriesView.vue')
+      },
+      {
         path: 'projects/:id/settings',
         name: 'ProjectSettings',
         component: () => import('@/views/admin/ProjectSettingsView.vue')
+      },
+      {
+        path: 'projects/:id/verification',
+        name: 'SourceFidelity',
+        component: () => import('@/views/admin/SourceFidelityView.vue')
       },
       {
         path: 'creator-grants',
@@ -101,6 +111,11 @@ const routes = [
         path: '',
         name: 'TaskHall',
         component: () => import('@/views/proofreader/TaskHallView.vue')
+      },
+      {
+        path: 'problems',
+        name: 'MyProblems',
+        component: () => import('@/views/proofreader/MyProblemsView.vue')
       },
       {
         path: 'profile',

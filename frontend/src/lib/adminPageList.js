@@ -1,39 +1,3 @@
-function searchableText(page) {
-  const proofreader = page?.expand?.proofreader
-  return [
-    page?.page_number,
-    page?.pdf_page,
-    page?.ocr_text,
-    page?.proofread_text,
-    proofreader?.name,
-    proofreader?.email
-  ].map((value) => String(value ?? '').toLocaleLowerCase('zh-CN')).join('\n')
-}
-
-export function filterAdminPages(pages, { query = '', status = '' } = {}) {
-  const source = Array.isArray(pages) ? pages : []
-  const normalizedQuery = String(query || '').trim().toLocaleLowerCase('zh-CN')
-  return source.filter((page) => {
-    if (status && page?.status !== status) return false
-    return !normalizedQuery || searchableText(page).includes(normalizedQuery)
-  })
-}
-
-export function paginateItems(items, page = 1, perPage = 25) {
-  const source = Array.isArray(items) ? items : []
-  const safePerPage = Math.max(1, Number(perPage) || 25)
-  const totalPages = Math.max(1, Math.ceil(source.length / safePerPage))
-  const safePage = Math.max(1, Math.min(totalPages, Number(page) || 1))
-  const start = (safePage - 1) * safePerPage
-  return {
-    items: source.slice(start, start + safePerPage),
-    page: safePage,
-    perPage: safePerPage,
-    totalItems: source.length,
-    totalPages
-  }
-}
-
 export function parseRangeInput(text, max) {
   const raw = String(text || '').trim()
   const safeMax = Math.max(0, Number(max) || 0)
@@ -60,4 +24,41 @@ export function parseRangeInput(text, max) {
   }
 
   return Array.from(indices).sort((left, right) => left - right)
+}
+
+function queryValue(value) {
+  return Array.isArray(value) ? value[0] : value
+}
+
+function positiveInteger(value, fallback = '') {
+  const parsed = Number(queryValue(value))
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+export function normalizeAdminPageQuery(query, { statuses, qualityStates, pageSizes }) {
+  const status = String(queryValue(query.status) || '')
+  const qualityState = String(queryValue(query.qualityState) || '')
+  const perPage = positiveInteger(query.perPage, 25)
+  const text = queryValue(query.q)
+  return {
+    q: typeof text === 'string' ? text.trim() : '',
+    status: statuses.includes(status) ? status : '',
+    qualityState: qualityStates.includes(qualityState) ? qualityState : '',
+    minPage: positiveInteger(query.minPage),
+    maxPage: positiveInteger(query.maxPage),
+    page: positiveInteger(query.page, 1),
+    perPage: pageSizes.includes(perPage) ? perPage : 25
+  }
+}
+
+export function adminPageRouteQuery(state) {
+  const query = {}
+  if (state.q) query.q = state.q
+  if (state.status) query.status = state.status
+  if (state.qualityState) query.qualityState = state.qualityState
+  if (state.minPage) query.minPage = String(state.minPage)
+  if (state.maxPage) query.maxPage = String(state.maxPage)
+  if (state.page > 1) query.page = String(state.page)
+  if (state.perPage !== 25) query.perPage = String(state.perPage)
+  return query
 }

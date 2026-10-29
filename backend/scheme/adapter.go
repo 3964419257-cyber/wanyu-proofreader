@@ -9,14 +9,16 @@
 // no rule of its own. The target end of the mapping now has a real, cited
 // inventory in data/ — 莆仙乡音社's 莆仙话拼音 under scheme id puxian-xiangyin (see
 // Scheme), where #114 used to name that community with nothing defining it — but
-// the source end still has none: every book's 凡例 states its own notation and its
-// own IPA, and until those are transcribed per book there is no honest way to
-// write a segment_map, which is what #114 §7 and #189's non-goals forbid. The
-// rules in testdata therefore stay synthetic and labelled as such.
+// the source end is transcribed book by book, and only what a 凡例 prints can be
+// registered. data/source/puxian-dict-preface.json is exactly that: the four
+// syllables paired with IPA in 《莆仙方言大词典》's own examples, labelled
+// rule_status=test because the book's full correspondence table is in an
+// appendix this repository does not have. Everything a book has not documented
+// is refused rather than inferred; the synthetic fixtures in testdata exist only
+// to exercise the engine.
 package scheme
 
 import (
-	"encoding/json"
 	"fmt"
 	"golang.org/x/text/unicode/norm"
 	"os"
@@ -42,6 +44,36 @@ const (
 	ToneValue    = "tone_value"
 	ToneCategory = "tone_category"
 )
+
+// RuleStatus is the two-valued declaration every rule file must make. There is
+// no third state and no default: see Adapter.RuleStatus for why the safe value
+// must not be the one you get by writing nothing.
+const (
+	// RuleStatusTest marks a rule set that exists to exercise the engine. It
+	// loads, it converts, and it may not create a job against real project data.
+	RuleStatusTest = "test"
+	// RuleStatusProduction marks a rule set that may, and requires a written
+	// basis saying where the rules and the source documentation came from — the
+	// provenance #190's first acceptance condition asks for by name.
+	RuleStatusProduction = "production"
+)
+
+// RealJobSchemaVersion is the adapter contract a real conversion job requires:
+// #189's `source notation → documented IPA → target notation`. Schema version 1
+// is the older direct `from → to` jump with no IPA slot at all, so a v1 file
+// carries no evidence of the two-step judgement no matter what it declares about
+// itself. Until #189 ships version 2 every rule file here is version 1 and is
+// therefore test-only; the disposable integration binary opts in to running one
+// through a build tag, and a production build never carries that tag.
+const RealJobSchemaVersion = 2
+
+// MayDriveRealJobs is the declaration half of the gate. It answers only what the
+// rule file says about itself, which is not enough on its own: what the file says
+// can be edited. The caller combines this with the contract check in
+// jobAdapter, and production builds further require RealJobSchemaVersion.
+func (a *Adapter) MayDriveRealJobs() bool {
+	return a.RuleStatus == RuleStatusProduction
+}
 
 // Segment is one row of the reviewable mapping table.
 type Segment struct {
@@ -106,6 +138,25 @@ type Adapter struct {
 	RuleVersion      string `json:"rule_version"`
 	AnnotationSystem string `json:"annotation_system"`
 
+	// RuleStatus says whether this rule set may drive a job against real project
+	// data, and RuleStatusBasis is the written provenance a production rule set
+	// has to carry. The gate that reads them lives at the call site
+	// (scheme_conversion.go): this package holds no policy and touches no
+	// database, so it validates the declaration and leaves the decision to the
+	// caller.
+	//
+	// It is a required string rather than a `test_only` bool on purpose, and the
+	// reason is the failure it has to survive. Every rule set shipped here today
+	// is synthetic — no book's 凡例 has been transcribed into a source inventory
+	// yet, that is #189 — and a synthetic value written into
+	// pages.canonical_pronunciation is indistinguishable downstream from a real
+	// one: it is exported, shipped, and read as the canonical scheme. A bool
+	// cannot tell "absent" from "false", so a fixture that forgot to mark itself
+	// would silently become eligible for real jobs. A required declaration cannot
+	// be forgotten: validate() rejects a file that does not say which it is.
+	RuleStatus      string `json:"rule_status"`
+	RuleStatusBasis string `json:"rule_status_basis,omitempty"`
+
 	Source     Inventory     `json:"source"`
 	Canonical  Inventory     `json:"canonical"`
 	Segments   []Segment     `json:"segment_map"`
@@ -131,6 +182,13 @@ type Adapter struct {
 	toneMap         map[string]string
 	ambiguous       map[string]Segment
 	exceptions      map[string]Exception
+
+	// v2 is set only for a schema_version 2 file, and it is what Convert and
+	// NormalizeCanonical read. A v1 adapter leaves it nil, so every existing
+	// code path is byte-for-byte unchanged; one struct rather than two types
+	// because the caller (#289's registry) holds adapters without caring about
+	// the schema version.
+	v2 *compiledV2
 }
 
 // ErrInvalidRule marks a rule file that cannot be trusted to load. LoadAdapter
@@ -140,27 +198,43 @@ type ErrInvalidRule struct{ Reason string }
 
 func (e ErrInvalidRule) Error() string { return "invalid scheme adapter: " + e.Reason }
 
-// LoadAdapter reads and validates one rule file. There is no default path: a
+// LoadAdapter reads and validates one v1 rule file. There is no default path: a
 // baked-in location is how #193/#195 ended up shipping someone's home directory.
+//
+// A v2 file cannot be loaded here, and the error says why rather than going on:
+// v2's second arrow is documented IPA → target notation, and that answer lives
+// in the target Scheme, which this entry point does not have. Use
+// LoadAdapterWithScheme.
 func LoadAdapter(path string) (*Adapter, error) {
+	return loadAdapterFile(path, nil)
+}
+
+// LoadAdapterWithScheme reads a rule file of either schema version. A v1 file
+// ignores target — its rows already name the target notation — so a caller that
+// has a target scheme can use this one entry point for both versions and needs
+// no version check of its own.
+func LoadAdapterWithScheme(path string, target *Scheme) (*Adapter, error) {
+	if target == nil {
+		return nil, ErrInvalidRule{Reason: "LoadAdapterWithScheme needs the target scheme; use LoadAdapter for a v1 file"}
+	}
+	return loadAdapterFile(path, target)
+}
+
+func loadAdapterFile(path string, target *Scheme) (*Adapter, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read adapter %s: %w", path, err)
 	}
-	adapter := &Adapter{}
-	if err := json.Unmarshal(raw, adapter); err != nil {
-		return nil, ErrInvalidRule{Reason: fmt.Sprintf("%s: %v", path, err)}
-	}
-	if err := adapter.validate(); err != nil {
-		return nil, err
-	}
-	return adapter, nil
+	return loadAdapterBytes(raw, path, target)
 }
 
-func (a *Adapter) validate() error {
-	switch {
-	case a.SchemaVersion != 1:
+// validateV1 is the schema_version 1 half. The version is checked here rather
+// than in the caller so the refusal names the number it saw.
+func (a *Adapter) validateV1() error {
+	if a.SchemaVersion != 1 {
 		return ErrInvalidRule{Reason: fmt.Sprintf("schema_version %d is not supported", a.SchemaVersion)}
+	}
+	switch {
 	case a.SourceScheme == "" || a.CanonicalScheme == "":
 		return ErrInvalidRule{Reason: "source_scheme_id and canonical_scheme_id are required"}
 	case a.SourceScheme == a.CanonicalScheme:
@@ -171,6 +245,16 @@ func (a *Adapter) validate() error {
 		return ErrInvalidRule{Reason: fmt.Sprintf(
 			"annotation_system %q cannot be handled by this engine; %s marks tone classes, not values",
 			a.AnnotationSystem, ToneCategory)}
+	case a.RuleStatus != RuleStatusTest && a.RuleStatus != RuleStatusProduction:
+		// Refusing to guess here is the whole point: a file that omits
+		// rule_status must not load at all, because the alternative is a
+		// synthetic rule set quietly inheriting whatever the default is.
+		return ErrInvalidRule{Reason: fmt.Sprintf(
+			"rule_status must be %q or %q, got %q: a rule set has to say whether it may drive real conversion jobs",
+			RuleStatusTest, RuleStatusProduction, a.RuleStatus)}
+	case a.RuleStatus == RuleStatusProduction && a.RuleStatusBasis == "":
+		return ErrInvalidRule{Reason: "rule_status_basis is required for a production rule set: " +
+			"it has to record where its rules and its source documentation came from"}
 	}
 	if len(a.Source.ToneValues) == 0 || len(a.Canonical.ToneValues) == 0 {
 		return ErrInvalidRule{Reason: "both inventories must declare their tone values"}

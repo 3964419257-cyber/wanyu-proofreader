@@ -1,4 +1,5 @@
 import { PAGE_STATUS } from '../constants/pageStatus.js'
+import { fieldKey } from './sourceComparison.js'
 
 function asList(value) {
   return Array.isArray(value) ? value : []
@@ -100,29 +101,11 @@ export function summarizePages(pages) {
   return summary
 }
 
-export function sortProjectInsights(projects) {
-  return asList(projects)
-    .map((item, index) => ({ item, index }))
-    .sort((left, right) => {
-      const arbitrationDelta = asNumber(right.item?.summary?.arbitration) - asNumber(left.item?.summary?.arbitration)
-      if (arbitrationDelta) return arbitrationDelta
-      const incompleteDelta = asNumber(right.item?.summary?.incomplete) - asNumber(left.item?.summary?.incomplete)
-      return incompleteDelta || left.index - right.index
-    })
-    .map(({ item }) => item)
-}
-
-export function getDifferingHeaders(headers, firstRow, secondRow) {
-  return asList(headers).filter((header) => {
-    return textValue(firstRow?.[header]) !== textValue(secondRow?.[header])
-  })
-}
-
-export function getDifferingHeadersForRows(headers, rows) {
+export function getDifferingHeadersForRows(headers, rows, policy) {
   const candidates = asList(rows)
   if (candidates.length < 2) return []
   return asList(headers).filter((header) => {
-    return new Set(candidates.map((row) => textValue(row?.[header]))).size > 1
+    return new Set(candidates.map((row) => fieldKey(row?.[header], header, policy))).size > 1
   })
 }
 

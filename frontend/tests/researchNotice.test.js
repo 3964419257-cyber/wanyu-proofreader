@@ -37,6 +37,7 @@ test('onboarding repeats the research notice before submit', () => {
   assert.match(editor, /researchOpen/)
   assert.match(editor, /close-on-esc="false"/)
   assert.match(editor, /if \(!researchDecided\.value\) return/)
+  assert.match(editor, /!researchDecided\.value \|\| !sourceChecked\.value/)
 })
 
 test('profile can change a research choice after the first decision', () => {

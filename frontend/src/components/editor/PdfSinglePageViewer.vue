@@ -2,13 +2,13 @@
   <div ref="viewerRef" class="pdf-viewer">
     <div class="pdf-toolbar">
       <div class="pdf-toolbar-group">
-        <button type="button" class="pdf-tool" :disabled="zoom <= 0.5" @click="changeZoom(-0.25)">－</button>
+        <button type="button" class="pdf-tool" :disabled="zoom <= 0.5" aria-label="缩小" @click="changeZoom(-0.25)">－</button>
         <span class="pdf-zoom-label">{{ Math.round(zoom * 100) }}%</span>
-        <button type="button" class="pdf-tool" :disabled="zoom >= 3" @click="changeZoom(0.25)">＋</button>
+        <button type="button" class="pdf-tool" :disabled="zoom >= 3" aria-label="放大" @click="changeZoom(0.25)">＋</button>
         <button type="button" class="pdf-tool" @click="resetView">适合宽度</button>
       </div>
       <div class="pdf-toolbar-group">
-        <span class="pdf-page-label">第 {{ sourcePageNumber || safePageLabel }} / {{ sourceTotalPages || totalPages || '—' }} 页</span>
+        <span class="pdf-page-label" aria-live="polite">第 {{ sourcePageNumber || safePageLabel }} / {{ sourceTotalPages || totalPages || '—' }} 页</span>
         <button type="button" class="pdf-tool" @click="rotateClockwise">旋转 90°</button>
         <button type="button" class="pdf-tool" @click="toggleFullscreen">
           {{ isFullscreen ? '退出全屏' : '全屏' }}
@@ -16,14 +16,15 @@
       </div>
     </div>
 
+    <div v-if="fullscreenError" class="alert alert-warning pdf-fullscreen-notice" role="status">{{ fullscreenError }}</div>
     <div v-if="error" class="alert alert-error" role="alert" style="margin:1rem">{{ error }}</div>
-    <div v-else ref="wrapRef" class="pdf-scroll">
+    <div v-else ref="wrapRef" class="pdf-scroll" role="region" tabindex="0" aria-label="PDF 原文">
       <div
         class="pdf-canvas-stage"
         :style="{ width: `${canvasCssWidth}px`, height: `${canvasCssHeight}px` }"
       >
         <img v-if="pageImage" class="pdf-page-image" :src="src" :width="pageImage.width" :height="pageImage.height" :style="imageStyle" alt="原文页面" @error="emit('image-error')" />
-        <canvas v-else ref="canvasRef" class="pdf-canvas"></canvas>
+        <canvas v-else ref="canvasRef" class="pdf-canvas" role="img" aria-label="PDF 页面图像"></canvas>
         <div v-if="src && watermarkUserId" class="pdf-identity-watermark" aria-hidden="true">
           <span v-for="tile in watermarkTileCount" :key="tile" class="pdf-identity-watermark-tile">{{ identityStamp }}</span>
         </div>
@@ -55,6 +56,7 @@ const canvasRef = ref(null)
 const loading = ref(false)
 const rendering = ref(false)
 const error = ref('')
+const fullscreenError = ref('')
 const zoom = ref(1)
 const rotation = ref(0)
 const totalPages = ref(0)
@@ -113,6 +115,7 @@ async function loadPdf(src) {
   const generation = ++loadGeneration
   cleanupRenderOnly()
   error.value = ''
+  fullscreenError.value = ''
   totalPages.value = 0
 
   if (!src) {
@@ -264,18 +267,24 @@ function rotateClockwise() {
 
 async function toggleFullscreen() {
   if (!viewerRef.value) return
+  fullscreenError.value = ''
+  const generation = loadGeneration
+  const exiting = Boolean(document.fullscreenElement)
   try {
-    if (document.fullscreenElement) {
+    if (exiting) {
       await document.exitFullscreen()
     } else {
       await viewerRef.value.requestFullscreen()
     }
   } catch {
-    error.value = '浏览器未允许进入全屏模式'
+    if (generation === loadGeneration) {
+      fullscreenError.value = exiting ? '浏览器未允许退出全屏模式，请重试。' : '浏览器未允许进入全屏模式，请重试。'
+    }
   }
 }
 
 function syncFullscreenState() {
+  fullscreenError.value = ''
   isFullscreen.value = document.fullscreenElement === viewerRef.value
   nextTick(() => renderCurrentPage())
 }
@@ -327,6 +336,11 @@ onBeforeUnmount(async () => {
 .pdf-viewer:fullscreen {
   min-height: 100vh;
   background: var(--pdf-track-strong);
+}
+
+.pdf-fullscreen-notice {
+  flex: 0 0 auto;
+  margin: var(--space-2) var(--space-3);
 }
 
 .pdf-toolbar {
