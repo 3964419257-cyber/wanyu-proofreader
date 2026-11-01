@@ -4,7 +4,7 @@
     :keyboard-available="keyboardAvailable"
     :suspended="(mobile && overview) || reviewingSubmission"
     :loading="loadingPage"
-    :pdf-enabled="!leaseLost && (!!leaseToken || saving || loadingPage)"
+    :pdf-enabled="ownReview || (!leaseLost && (!!leaseToken || saving || loadingPage))"
     :watermark-user-id="currentUserId"
     return-to="/tasks"
     return-label="返回大厅"
@@ -14,7 +14,7 @@
     <template #panel-header>
       <header class="editor-panel-header editor-panel-header--task">
         <div class="editor-context">
-          <span>{{ projectName }} · 独立校对</span>
+          <span>{{ projectName }} · {{ ownReview ? '回看已提交' : '独立校对' }}</span>
           <strong id="task-panel-title">第 {{ page?.page_number || '—' }} 条</strong>
         </div>
         <details class="task-actions-menu" :open="!mobile">
@@ -35,18 +35,19 @@
             :disabled="!canSwitchNext"
           >下一条</button>
           <button
-            v-if="page && !leaseLost"
+            v-if="page && !leaseLost && !ownReview"
             class="btn btn-quiet btn-sm"
             :disabled="saving || releasing || !leaseToken"
             @click="releaseCurrentTask"
           >{{ releasing ? '释放中…' : '释放任务' }}</button>
           <button
-            v-if="page && !submittedHere && !leaseLost"
+            v-if="page && !submittedHere && !leaseLost && !ownReview"
             class="btn btn-quiet btn-sm"
             :disabled="saving || !leaseToken"
             @click="openReturnModal"
           >退回</button>
           <button
+            v-if="!ownReview"
             class="btn btn-success btn-sm"
             @click="openSubmitReview"
             :disabled="saving || loadingPage || !page || leaseLost || !leaseToken"
@@ -81,12 +82,18 @@
           <div v-else-if="saveError" class="alert alert-error" role="alert">{{ saveError }}</div>
 
           <div class="editor-meta" aria-live="polite">
+            <template v-if="ownReview">
+              <span class="draft-indicator">只读回看，不会保存草稿，也不会重新领取。</span>
+              <span class="shortcut-hint">Alt+←/→ 切换</span>
+            </template>
+            <template v-else>
             <span class="draft-indicator" :class="{ 'draft-indicator--saved': draftStatus.includes('已保存') || draftStatus.includes('已恢复') }">
               <i aria-hidden="true"></i>
               {{ draftStatus || '修改后自动保存到本机' }}
             </span>
             <span v-if="leaseStatus" class="lease-indicator" :class="{ 'lease-indicator--lost': leaseLost }">{{ leaseStatus }}</span>
             <span class="shortcut-hint">⌘/Ctrl+S 草稿 · ⌘/Ctrl+Enter 提交 · Alt+←/→ 切换</span>
+            </template>
           </div>
           <details v-if="staleLocalDrafts.length" class="alert" role="note"><summary>本人旧版／失配本机草稿（{{ staleLocalDrafts.length }}）</summary><p>旧值未自动套用到新来源；请逐字段重新核对。</p><dl v-for="(draft, index) in staleLocalDrafts" :key="index"><template v-for="(value, field) in draft.row" :key="field"><dt>{{ field }}</dt><dd>{{ value || '（空白）' }}</dd></template></dl></details>
 
@@ -99,8 +106,9 @@
           </div>
 
       <RareCharacterNotice :texts="[...Object.values(originalRow), ...Object.values(editedRow)]" />
-      <TaskVerificationPanel ref="verificationPanel" :page="page" :row="editedRow" :lease-token="leaseToken" :hints="rawFindings" :routing-help="researchSession?.presentation?.display?.routing_help !== false" :active="!!leaseToken && !leaseLost && !submittedHere && !saving" @restore="replaceEditedRow" @context="receiveVerificationContext" />
-      <ResearchTelemetry ref="researchTelemetry" :session="researchSession" :submitted="submittedHere" :density-collapsed-ids="densityCollapsedIds" />
+      <p v-if="ownReview" class="alert" role="note">{{ OWN_REVIEW_NOTICE }}</p>
+      <TaskVerificationPanel v-if="!ownReview" ref="verificationPanel" :page="page" :row="editedRow" :lease-token="leaseToken" :hints="rawFindings" :routing-help="researchSession?.presentation?.display?.routing_help !== false" :active="!!leaseToken && !leaseLost && !submittedHere && !saving" @restore="replaceEditedRow" @context="receiveVerificationContext" />
+      <ResearchTelemetry v-if="!ownReview" ref="researchTelemetry" :session="researchSession" :submitted="submittedHere" :density-collapsed-ids="densityCollapsedIds" />
 
           <ul v-if="pageHintList.length || pageHintOverflow" class="field-hint-list field-hint-list--page" aria-label="本条整条级机器疑点">
             <li v-for="(hint, hintIndex) in pageHintList" :key="`page-hint-${hintIndex}`">
@@ -118,7 +126,7 @@
             {{ gatedNoticeText }}
           </p>
 
-          <p class="correction-paths text-sm text-muted" role="note">
+          <p v-if="!ownReview" class="correction-paths text-sm text-muted" role="note">
             字写错了，改对应的文字字段。记音或说法不对，改读音字段，特殊字符用下方字符键盘。还没提交时，用这一栏的「恢复原文」。提交之后不能撤回，系统会尝试打开下一条，不会停在这一条上再改。
           </p>
           <div class="proofread-fields">
@@ -141,6 +149,7 @@
                 <div class="proofread-field__actions">
                   <span v-if="isFieldChanged(header)" class="field-change-label">已修改</span>
                   <button
+                    v-if="!ownReview"
                     type="button"
                     class="btn btn-quiet btn-sm"
                     :disabled="!isFieldChanged(header) || saving || submittedHere || leaseLost || !leaseToken"
@@ -178,7 +187,7 @@
               <label class="sr-only" :for="`proofread-field-${index}`">{{ header }} 校对结果</label>
               <textarea
                 :inputmode="inputMode"
-                :readonly="saving || submittedHere || leaseLost || !leaseToken || (mobile && overview)"
+                :readonly="ownReview || saving || submittedHere || leaseLost || !leaseToken || (mobile && overview)"
                 :id="`proofread-field-${index}`"
                 :ref="(el) => setTextareaRef(header, el)"
                 v-model="editedRow[header]"
@@ -197,9 +206,9 @@
         </template>
     </template>
     <template #navigation><FieldNavigation :headers="rowHeaders" :index="fieldIndex" :overview="overview" @select="selectField" @next="nextField">
-      <template #submit><button class="btn btn-success" @click="openSubmitReview">检查并提交</button></template>
+      <template #submit v-if="!ownReview"><button class="btn btn-success" @click="openSubmitReview">检查并提交</button></template>
     </FieldNavigation></template>
-    <template #keyboard><ProjectKeyboard v-if="page" :project-id="page.project" @availability="keyboardAvailable = $event" @insert="insertText" /></template>
+    <template #keyboard><ProjectKeyboard v-if="page && !ownReview" :project-id="page.project" @availability="keyboardAvailable = $event" @insert="insertText" /></template>
   </DocumentReviewWorkspace>
 
     <AppModal
@@ -306,6 +315,7 @@ import { useFieldNavigation } from '@/composables/useFieldNavigation'
 import ProjectKeyboard from '@/components/editor/ProjectKeyboard.vue'
 import { useStructuredRow } from '@/composables/useStructuredRow'
 import { useTaskNeighbors } from '@/composables/useTaskNeighbors'
+import { mergeOwnTasks } from '@/lib/ownTaskList'
 import { PAGE_STATUS } from '@/constants/pageStatus'
 import { shouldIgnoreEditorShortcut } from '@/lib/onboarding'
 import { getChangedFields } from '@/lib/workspaceInsights'
@@ -334,13 +344,14 @@ import {
   getPageFindings,
   getProofreaderTask,
   listProofreaderNeighborTasks,
+  listReviewedProofreads,
   releaseTaskLease,
   renewTaskLease,
   returnToSource,
   submitTwoPassProofread
 } from '@/services/pagesService'
 import { RETURN_REASONS, flushReturnQueue, loadQueueMode, loadReturnQueue, saveQueueMode, saveReturnQueue } from '@/lib/returnQueue'
-import { CLAIM_NEXT_FAILURE_NOTICE, IRREVERSIBLE_SUBMIT_NOTICE } from '@/lib/proofreadNotices'
+import { CLAIM_NEXT_FAILURE_NOTICE, IRREVERSIBLE_SUBMIT_NOTICE, OWN_REVIEW_NOTICE } from '@/lib/proofreadNotices'
 import { RESEARCH_NOTICE_COPY } from '@/lib/researchNoticeCopy'
 import { chooseResearchNotice as saveResearchNotice, getResearchNotice } from '@/services/researchNoticeService'
 import { formatClaimConflict, getPbMessage, getPbStatus } from '@/utils/pbErrors'
@@ -353,7 +364,7 @@ const researchLoaded = ref(false)
 const researchSaving = ref(false)
 const researchError = ref('')
 const researchDecided = computed(() => Boolean(researchNotice.value?.decided))
-const researchOpen = computed(() => researchLoaded.value && !researchDecided.value)
+const researchOpen = computed(() => !loadingPage.value && !ownReview.value && researchLoaded.value && !researchDecided.value)
 const researchCopy = computed(() => ({
   title: researchNotice.value?.title || RESEARCH_NOTICE_COPY.title,
   body: researchNotice.value?.body || RESEARCH_NOTICE_COPY.body,
@@ -395,6 +406,7 @@ const returnQueue = ref([])
 const renewingLease = ref(false)
 const leaseNavigationAllowed = ref(false)
 const submittedHere = ref(false)
+const ownReview = ref(false)
 const claimNextFailure = ref(false)
 const retryingClaim = ref(false)
 const irreversibleSubmitNotice = IRREVERSIBLE_SUBMIT_NOTICE
@@ -421,11 +433,21 @@ const navigationLabel = computed(() => {
   if (loadingPage.value || neighborsState.value === 'loading') return '位置加载中…'
   if (neighborsState.value === 'error') return '位置不可用'
   if (!page.value) return '任务不可用'
-  if (taskCount.value === 0) return '暂无任务'
+  if (taskCount.value === 0) return ownReview.value ? '暂无已提交条目' : '暂无任务'
   if (taskPosition.value === 0) return '位置未知'
   return `${taskPosition.value} / ${taskCount.value}`
 })
 const navigationHint = computed(() => {
+  if (ownReview.value) {
+    if (loadingPage.value || neighborsState.value === 'loading') return ''
+    if (neighborsState.value === 'error') return neighborsError.value
+    if (taskCount.value === 0) return '当前没有可回看的已提交条目。'
+    if (taskPosition.value === 0) return '这条已提交结果不在当前列表里。'
+    if (taskCount.value === 1) return '当前只有这一条已提交结果。'
+    if (!canNavigatePrev.value) return '已是最早一条。'
+    if (!canNavigateNext.value) return '已是最后一条。'
+    return ''
+  }
   if (submittedHere.value) return '本条已提交，不再计入进行中的任务。'
   if (loadingPage.value || neighborsState.value === 'loading') return ''
   if (saving.value) return '正在提交，暂不能切换任务。'
@@ -462,6 +484,7 @@ const {
   activeField,
   editedText,
   hydrateForProofread,
+  hydrateForReview,
   replaceEditedRow,
   markChanged,
   insertText: insertIntoActiveField,
@@ -483,7 +506,15 @@ const {
   const userId = currentUserId.value
   if (!userId) throw new Error('登录状态已失效，请重新登录后重试。')
   if (!currentPage?.project) return []
-  return listProofreaderNeighborTasks(currentPage.project, userId)
+  const settled = await Promise.allSettled([
+    listProofreaderNeighborTasks(currentPage.project, userId),
+    listReviewedProofreads(currentPage.project)
+  ])
+  const active = settled[0].status === 'fulfilled' ? settled[0].value : []
+  const reviewed = settled[1].status === 'fulfilled' ? settled[1].value.items : []
+  if (settled[0].status === 'rejected' && (!ownReview.value || settled[1].status === 'rejected')) throw settled[0].reason
+  if (settled[1].status === 'rejected' && ownReview.value) throw settled[1].reason
+  return mergeOwnTasks(active, reviewed)
 })
 
 const keyboardAvailable = ref(false)
@@ -562,14 +593,20 @@ async function loadPage() {
   findingsGeneration += 1
 
   try {
-    page.value = await getProofreaderTask(route.params.id)
-    hydrateForProofread(page.value)
-    initialRowJson.value = stringifyEditedRow()
-    restoreDraft()
-    await restoreOrAcquireLease()
-    await loadNeighbors()
-    // 疑点读取是渐进增强：不 await，失败或空数组都保持界面原样（getPageFindings 内部已兜错）。
-    void loadFindings(page.value.id)
+    page.value = await loadAssignedOrOwnReview(route.params.id)
+    ownReview.value = page.value?.readonly === true
+    if (ownReview.value) {
+      hydrateForReview(page.value)
+      await loadNeighbors()
+    } else {
+      hydrateForProofread(page.value)
+      initialRowJson.value = stringifyEditedRow()
+      restoreDraft()
+      await restoreOrAcquireLease()
+      await loadNeighbors()
+      // 疑点读取是渐进增强：不 await，失败或空数组都保持界面原样（getPageFindings 内部已兜错）。
+      void loadFindings(page.value.id)
+    }
     const flash = takeTaskFlash(window.sessionStorage)
     if (flash) saved.value = flash
     await nextTick()
@@ -577,8 +614,17 @@ async function loadPage() {
   } catch (e) {
     saveError.value = formatClaimConflict(e, '加载任务失败，请返回项目大厅刷新后重试')
   } finally {
-    draftReady.value = Boolean(page.value)
+    draftReady.value = Boolean(page.value) && !ownReview.value
     loadingPage.value = false
+  }
+}
+
+async function loadAssignedOrOwnReview(pageId) {
+  try {
+    return await getProofreaderTask(pageId)
+  } catch (error) {
+    if (getPbStatus(error) !== 403) throw error
+    return getProofreaderTask(pageId, { review: true })
   }
 }
 
@@ -601,7 +647,7 @@ function onTextChange() {
 }
 
 async function insertText(char) {
-  if (saving.value || submittedHere.value || leaseLost.value || !leaseToken.value) return
+  if (ownReview.value || saving.value || submittedHere.value || leaseLost.value || !leaseToken.value) return
   if (mobile.value && overview.value) return
   const field = mobile.value ? currentField.value : activeField.value || rowHeaders.value[0]
   if (!field) return
@@ -748,6 +794,7 @@ async function chooseResearchNotice(choice) {
 }
 
 async function openSubmitReview() {
+  if (ownReview.value) return
   if (mobile.value && !overview.value) { overview.value = true; return }
   if (!researchDecided.value) return
   if (saving.value || loadingPage.value || !page.value || leaseLost.value || !leaseToken.value) return
@@ -763,6 +810,7 @@ function closeSubmitReview() {
 }
 
 function confirmDiscardChanges() {
+  if (ownReview.value) return true
   if (!hasUnsavedChanges.value) return true
   return window.confirm('当前校对内容尚未提交，确定要离开吗？本地草稿会保留。')
 }
@@ -783,6 +831,7 @@ function scheduleDraftSave() {
 
 function flushDraft() {
   clearDraftTimer()
+  if (ownReview.value) return
   if (!draftReady.value || !page.value || !currentUserId.value || !initialRowJson.value) return
   try {
     if (!hasUnsavedChanges.value) {
@@ -860,6 +909,10 @@ function handleEditorShortcut(event) {
     return
   }
   const control = event.ctrlKey || event.metaKey
+  if (ownReview.value && control && (event.key.toLowerCase() === 's' || event.key === 'Enter')) {
+    event.preventDefault()
+    return
+  }
   if (control && event.key.toLowerCase() === 's') {
     event.preventDefault()
     flushDraft()
@@ -882,7 +935,7 @@ function handleEditorShortcut(event) {
 }
 
 async function submitProofread() {
-  if (saving.value || !page.value || leaseLost.value || !leaseToken.value || !researchDecided.value || !sourceChecked.value) return
+  if (ownReview.value || saving.value || !page.value || leaseLost.value || !leaseToken.value || !researchDecided.value || !sourceChecked.value) return
   saving.value = true
   saved.value = ''
   saveError.value = ''

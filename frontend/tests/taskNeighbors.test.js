@@ -144,15 +144,30 @@ test('editor loader reports a lost identity as an error and recovers after login
   const loaderBody = source.match(/useTaskNeighbors\(page, async \(currentPage\) => \{([\s\S]*?)\n\}\)/)?.[1]
   assert.ok(loaderBody, 'exercise the actual editor loader')
   const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
-  const loader = new AsyncFunction('currentPage', 'currentUserId', 'listProofreaderNeighborTasks', loaderBody)
+  const loader = new AsyncFunction(
+    'currentPage',
+    'currentUserId',
+    'listProofreaderNeighborTasks',
+    'listReviewedProofreads',
+    'mergeOwnTasks',
+    'ownReview',
+    loaderBody
+  )
   const user = ref('')
   let calls = 0
-  const api = useTaskNeighbors(ref({ id: 'a', project: 'p1' }), (page) => loader(page, user, async (project, userId) => {
-    calls += 1
-    assert.equal(project, 'p1')
-    assert.equal(userId, 'u1')
-    return [{ id: 'a' }, { id: 'b' }]
-  }))
+  const api = useTaskNeighbors(ref({ id: 'a', project: 'p1' }), (page) => loader(
+    page,
+    user,
+    async (project, userId) => {
+      calls += 1
+      assert.equal(project, 'p1')
+      assert.equal(userId, 'u1')
+      return [{ id: 'a' }, { id: 'b' }]
+    },
+    async () => ({ items: [] }),
+    (active) => active,
+    { value: false }
+  ))
   await api.loadNeighbors()
   assert.equal(api.neighborsState.value, 'error')
   assert.equal(api.neighborsError.value, '登录状态已失效，请重新登录后重试。')
