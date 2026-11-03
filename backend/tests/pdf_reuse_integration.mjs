@@ -45,7 +45,9 @@ if(process.env.PDF_REUSE_BROWSER_SCRIPT){
 }else{
  const original=await descriptor(users[0],first.id), originalBytes=await pdf(users[0],first.id)
  await submit(users[0],first)
- await api(`/api/fangji/pages/${first.id}/pdf/descriptor`,{token:users[0].token,status:403})
+ const reviewed=await descriptor(users[0],first.id)
+ assert.equal(reviewed.key,original.key,'own current-round submission keeps the same preview')
+ await api(`/api/fangji/pages/${first.id}/pdf/descriptor`,{token:users[1].token,status:403})
  const second=await claim(users[0],first.id);assert.equal(second.id,pages[2].id,'must prefer same PDF over eligible earlier page')
  assert.equal((await descriptor(users[0],second.id)).key,original.key)
  assert.deepEqual(await pdf(users[0],second.id),originalBytes,'same window across task IDs reuses identical watermarked PDF')
