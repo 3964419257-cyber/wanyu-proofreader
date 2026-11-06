@@ -56,12 +56,19 @@ func (s *importService) resolveTaskPDF(c *core.RequestEvent) (*core.Record, int,
 	projectID := page.GetString("project")
 	if _, _, err := s.requireProjectManager(c, projectID); err != nil {
 		members, lookupErr := s.app.FindRecordsByFilter("project_memberships", fmt.Sprintf(`project = %q && user = %q && role = "proofreader"`, projectID, auth.Id), "", 1, 0)
-		if lookupErr != nil || len(members) == 0 || page.GetString("proofreader") != auth.Id || (page.GetString("status") != "claimed" && page.GetString("status") != "proofreading") {
+		isProofreader := lookupErr == nil && len(members) > 0
+		status := page.GetString("status")
+		active := isProofreader && page.GetString("proofreader") == auth.Id && (status == "claimed" || status == "proofreading")
+		switch {
+		case active:
+			leases, leaseErr := s.app.FindRecordsByFilter("task_leases", fmt.Sprintf(`page = %q && holder = %q`, page.Id, auth.Id), "", 1, 0)
+			if leaseErr != nil || len(leases) == 0 || !leases[0].GetDateTime("expires_at").Time().After(time.Now()) {
+				return nil, 0, 0, apis.NewForbiddenError("任务租约已失效，请重新领取。", nil)
+			}
+		case isProofreader && s.ownCurrentProofread(page, auth.Id):
+			// 本人当前轮已提交的只读回看可以对照原文。不领租约，也不放开他人或旧轮。
+		default:
 			return nil, 0, 0, apis.NewForbiddenError("只能查看当前分配给你的任务 PDF。", nil)
-		}
-		leases, err := s.app.FindRecordsByFilter("task_leases", fmt.Sprintf(`page = %q && holder = %q`, page.Id, auth.Id), "", 1, 0)
-		if err != nil || len(leases) == 0 || !leases[0].GetDateTime("expires_at").Time().After(time.Now()) {
-			return nil, 0, 0, apis.NewForbiddenError("任务租约已失效，请重新领取。", nil)
 		}
 	}
 	var file *core.Record
@@ -90,6 +97,21 @@ func (s *importService) resolveTaskPDF(c *core.RequestEvent) (*core.Record, int,
 		end = count
 	}
 	return file, start, end, nil
+}
+
+func (s *importService) ownCurrentProofread(page *core.Record, userID string) bool {
+	round := page.GetInt("proofread_round")
+	if round < 1 {
+		round = 1
+	}
+	attempts, err := s.app.FindRecordsByFilter(
+		"proofreading_attempts",
+		fmt.Sprintf(`page = %q && round = %d && proofreader = %q && kind = "proofread"`, page.Id, round, userID),
+		"",
+		1,
+		0,
+	)
+	return err == nil && len(attempts) > 0
 }
 
 type pdfPreviewDescriptor struct {

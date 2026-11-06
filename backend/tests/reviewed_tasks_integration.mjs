@@ -209,6 +209,11 @@ try {
   assert.equal(Object.keys(reviewedAfterFirst.items[0]).sort().join(','), 'id,page_number,submitted_at')
   assertBlindCursor(reviewedAfterFirst, 'first reviewed cursor')
 
+  const ownDescriptor = await request(`/api/fangji/pages/${page1.id}/pdf/descriptor`, { token: first.token, expected: 404 })
+  assert.match(JSON.stringify(ownDescriptor), /没有可预览的 PDF/)
+  const otherDescriptor = await request(`/api/fangji/pages/${page1.id}/pdf/descriptor`, { token: second.token, expected: 403 })
+  assert.match(JSON.stringify(otherDescriptor), /只能查看当前分配给你的任务 PDF/)
+
   await request(`/api/fangji/pages/${page1.id}/task`, { token: first.token, expected: 403 })
 
   const secondEmpty = await request(`/api/fangji/projects/${project.id}/tasks/reviewed`, {
@@ -341,6 +346,7 @@ try {
   assert.equal(afterStaleRound.total, 3)
   await request(`/api/fangji/pages/${stalePage.id}/task`, { token: first.token, expected: 403 })
   await request(`/api/fangji/pages/${stalePage.id}/task?mode=review`, { token: first.token, expected: 403 })
+  await request(`/api/fangji/pages/${stalePage.id}/pdf/descriptor`, { token: first.token, expected: 403 })
 
   console.log('Reviewed tasks cursor integration test passed.')
 } finally {

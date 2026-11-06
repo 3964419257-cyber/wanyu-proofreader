@@ -270,7 +270,7 @@
       </template>
     </AppModal>
 
-    <AppModal :open="returnModalOpen" title-id="return-modal-title" mark="退" @close="closeReturnModal">
+    <AppModal :open="returnModalOpen && !ownReview" title-id="return-modal-title" mark="退" @close="closeReturnModal">
       <div class="page-eyebrow">退回给资料接入</div>
       <h2 id="return-modal-title">退回第 {{ page?.page_number }} 条</h2>
       <p class="text-sm text-muted">说明这条为什么需要资料接入重新处理。退回后它会从校对队列消失，进入「待返工」。</p>
@@ -1044,6 +1044,7 @@ function clearGlyphQueue(projectId) {
 }
 
 function openReturnModal() {
+  if (ownReview.value) return
   returnReason.value = ''
   returnBasis.value = ''
   queueMode.value = loadQueueMode(window.localStorage, currentUserId.value)
@@ -1060,7 +1061,7 @@ function persistQueueMode() {
 }
 
 async function confirmReturn() {
-  if (!page.value?.id || returning.value || !returnReason.value || !returnBasis.value.trim()) return
+  if (ownReview.value || !page.value?.id || returning.value || !returnReason.value || !returnBasis.value.trim()) return
   const item = { pageId: page.value.id, reason: returnReason.value, basis: returnBasis.value.trim() }
   if (queueMode.value) {
     // 队列模式：只暂存，不真退。
@@ -1085,7 +1086,7 @@ async function confirmReturn() {
 }
 
 async function batchReturn() {
-  if (!returnQueue.value.length || returning.value) return
+  if (ownReview.value || !returnQueue.value.length || returning.value) return
   returning.value = true
   try {
     const { remaining, failedCount } = await flushReturnQueue(
