@@ -6,6 +6,8 @@ export const KEYBOARD_HINT_STORAGE_KEY = 'wanyu.keyboard-hint-dismissed'
 
 export const CLAIM_NEXT_FAILURE_NOTICE = '自动领取下一条没有成功。这一条已经提交，你可以返回大厅，或再试一次领取。'
 
+export const OWN_REVIEW_NOTICE = '正在回看你已提交的结果，不能修改或再次提交。字写错了当时应改文字字段，记音或说法不对应改读音字段。如需更正，请联系项目管理员。'
+
 export const MISSING_PDF_PAGE_NOTICE = '此条目没有记录 PDF 页码，当前按任务序号打开原文，看到的页可能不是这一条。原文仅供大致参考，请谨慎对照。'
 
 export function missingPdfPageNotice(page) {

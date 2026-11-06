@@ -129,15 +129,23 @@
 
           <footer class="project-work-card__footer">
             <span>{{ queueAction(queue).detail }}</span>
-            <button
-              class="btn"
-              :class="queueAction(queue).tone === 'active' ? 'btn-success' : 'btn-primary'"
-              :disabled="claimingProject === queue.project.id || !queueAction(queue).canEnter"
-              @click="enterProject(queue)"
-            >
-              {{ claimingProject === queue.project.id ? '正在打开…' : queueAction(queue).label }}
-              <span v-if="queueAction(queue).canEnter" aria-hidden="true">→</span>
-            </button>
+            <div class="project-work-card__actions">
+              <button
+                type="button"
+                class="btn btn-quiet"
+                :disabled="reviewingProject === queue.project.id || claimingProject === queue.project.id"
+                @click="openOwnReview(queue)"
+              >{{ reviewingProject === queue.project.id ? '正在打开…' : '回看已提交' }}</button>
+              <button
+                class="btn"
+                :class="queueAction(queue).tone === 'active' ? 'btn-success' : 'btn-primary'"
+                :disabled="claimingProject === queue.project.id || reviewingProject === queue.project.id || !queueAction(queue).canEnter"
+                @click="enterProject(queue)"
+              >
+                {{ claimingProject === queue.project.id ? '正在打开…' : queueAction(queue).label }}
+                <span v-if="queueAction(queue).canEnter" aria-hidden="true">→</span>
+              </button>
+            </div>
           </footer>
         </article>
       </div>
@@ -155,16 +163,17 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { currentUserId } from '@/services/authService'
-import { claimNextProjectPage, listProjectQueueSummaries } from '@/services/pagesService'
+import { claimNextProjectPage, listProjectQueueSummaries, listReviewedProofreads } from '@/services/pagesService'
 import { getProofreaderQueueAction, summarizeProofreaderQueues } from '@/lib/workspaceInsights'
 import { tierBreakdown } from '@/lib/taskTiers'
-import { formatClaimConflict, formatPbError } from '@/utils/pbErrors'
+import { formatClaimConflict, formatPbError, getPbMessage } from '@/utils/pbErrors'
 import { saveTaskLease, saveGlyphQueue } from '@/lib/taskLease'
 
 const router = useRouter()
 const auth = useAuthStore()
 const loading = ref(true)
 const claimingProject = ref('')
+const reviewingProject = ref('')
 const loadError = ref('')
 const actionError = ref('')
 const projectQueues = ref([])
@@ -200,9 +209,29 @@ async function loadProjects({ keepActionError = false } = {}) {
   }
 }
 
+async function openOwnReview(queue) {
+  const projectId = queue?.project?.id
+  if (!projectId || reviewingProject.value || claimingProject.value) return
+  reviewingProject.value = projectId
+  actionError.value = ''
+  try {
+    const reviewed = await listReviewedProofreads(projectId)
+    const first = reviewed.items[0]
+    if (!first?.id) {
+      actionError.value = '你在这个项目里还没有可以回看的已提交条目。'
+      return
+    }
+    await router.push(`/tasks/${first.id}/edit`)
+  } catch (error) {
+    actionError.value = getPbMessage(error, '已提交条目暂时打不开，请稍后再试。')
+  } finally {
+    reviewingProject.value = ''
+  }
+}
+
 async function enterProject(queue, tier = '', glyph = false) {
   const projectId = queue?.project?.id
-  if (!projectId || claimingProject.value || !queueAction(queue).canEnter) return
+  if (!projectId || claimingProject.value || reviewingProject.value || !queueAction(queue).canEnter) return
   claimingProject.value = projectId
   actionError.value = ''
   try {

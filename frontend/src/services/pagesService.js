@@ -91,10 +91,24 @@ export async function getPage(pageId, options = {}) {
   })
 }
 
-export async function getProofreaderTask(pageId) {
+export async function getProofreaderTask(pageId, { review = false } = {}) {
   return pb.send(`/api/fangji/pages/${encodeURIComponent(pageId)}/task`, {
+    ...(review ? { query: { mode: 'review' } } : {}),
     requestKey: null
   })
+}
+
+export async function listReviewedProofreads(projectId) {
+  if (!projectId) return { items: [], position: 0, total: 0 }
+  const result = await pb.send(`/api/fangji/projects/${encodeURIComponent(projectId)}/tasks/reviewed`, {
+    requestKey: null
+  })
+  const items = Array.isArray(result?.items) ? result.items : []
+  return {
+    items,
+    position: Number(result?.position) || 0,
+    total: Number.isFinite(Number(result?.total)) ? Number(result.total) : items.length
+  }
 }
 
 export async function reorderPendingPages(projectId, orderedIds) {

@@ -591,6 +591,7 @@ tr:hover td { background: var(--gray-50); }
 .queue-tier--warn { border-color: var(--warn); color: var(--warn); cursor: default; }
 .queue-metrics dd { margin-top: .25rem; color: var(--ink); font-size: 1rem; font-weight: 700; }
 .project-work-card__footer > span { color: var(--gray-500); font-size: .78rem; }
+.project-work-card__actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: flex-end; }
 .skeleton-card { min-height: 280px; align-content: start; pointer-events: none; }
 .skeleton-line {
   display: block;
@@ -771,6 +772,7 @@ button.field-hint-chip:focus-visible { outline: 2px solid var(--primary); outlin
 @media (max-width: 640px) {
   .container { padding-inline: 1rem; }
   .project-work-card__footer, .section-heading { align-items: stretch; flex-direction: column; }
+  .project-work-card__actions { width: 100%; }
   .project-work-card__footer .btn { justify-content: center; }
   .editor-toolbar { width: 100%; flex-wrap: wrap; }
   .editor-toolbar .btn-success { margin-left: auto; }
